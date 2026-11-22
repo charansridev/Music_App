@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOTHING.MUSIC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='black'/><circle cx='50' cy='50' r='28' fill='none' stroke='%23FF2D2D' stroke-width='6'/><circle cx='50' cy='50' r='8' fill='%23FF2D2D'/></svg>">
+</head>
+<body class="neon-boot">
+<div id="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <span class="logo-mark">◉</span>
+      <div><div class="logo-name">NOTHING</div><div class="logo-sub">◉ MUSIC OS · V1.0</div></div>
+    </div>
+    <nav id="nav">
+      <div class="nav-label">Listen</div>
+      <a href="#/home" data-view="home"><span class="nav-ico" data-ico="home"></span><span class="nav-text">Home</span></a>
+      <a href="#/library" data-view="library"><span class="nav-ico" data-ico="library"></span><span class="nav-text">Library</span></a>
+      <a href="#/loved" data-view="loved"><span class="nav-ico" data-ico="heart"></span><span class="nav-text">Loved</span></a>
+      <a href="#/playlists" data-view="playlists"><span class="nav-ico" data-ico="playlist"></span><span class="nav-text">Playlists</span></a>
+      <a href="#/podcasts" data-view="podcasts"><span class="nav-ico" data-ico="mic"></span><span class="nav-text">Podcasts</span></a>
+      <a href="#/stats" data-view="stats"><span class="nav-ico" data-ico="chart"></span><span class="nav-text">Stats</span></a>
+      <div class="nav-label"></div>
+      <a href="#/settings" data-view="settings"><span class="nav-ico" data-ico="gear"></span><span class="nav-text">Settings</span></a>
+      <a href="#/help" data-view="help"><span class="nav-ico" data-ico="help"></span><span class="nav-text">Help</span></a>
+    </nav>
+    <div class="signal-panel">
+      <div class="signal-head mono"><span>SIGNAL</span><span id="signal-db">-- dB</span></div>
+      <canvas id="signal-canvas" height="52"></canvas>
+    </div>
+    <div class="sidebar-card" id="library-card">
+      <span class="sidebar-card-ico" data-ico="disc"></span>
+      <div class="sidebar-card-title">Local library</div>
+      <div class="sidebar-card-sub">No ads, no cloud. Just your music.</div>
+      <button class="btn btn-primary btn-sm" id="btn-pick-folder">Choose folder</button>
+    </div>
+    <div class="sidebar-user">
+      <span class="avatar" data-ico="disc"></span>
+      <div><div class="user-name" id="lib-count-label">No library yet</div><div class="user-sub" id="lib-count-sub">Choose a music folder</div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <button class="search-pill" id="search-open"><span data-ico="search"></span><span class="search-hint">Search songs, artists…</span><span class="kbd">⌘K</span></button>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="btn-queue" title="Queue"><span data-ico="queue"></span></button>
+        <span class="avatar avatar-sm" data-ico="disc"></span>
+      </div>
+    </header>
+    <div class="view" id="view"></div>
+  </main>
+</div>
+
+<footer class="playerbar" id="playerbar">
+  <div id="pb-line"></div>
+  <div class="pb-left">
+    <div class="pb-eq idle" id="pb-eq"><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span></div>
+    <div class="pb-art" id="pb-art"></div>
+    <div class="pb-meta">
+      <div class="pb-title" id="pb-title">Nothing playing</div>
+      <div class="pb-artist" id="pb-artist">Pick a folder to start</div>
+    </div>
+    <button class="icon-btn heart-btn" id="pb-love" title="Love"><span data-ico="heart"></span></button>
+  </div>
+  <div class="pb-center">
+    <div class="pb-buttons">
+      <button class="icon-btn" id="pb-shuffle" title="Shuffle"><span data-ico="shuffle"></span></button>
+      <button class="icon-btn" id="pb-prev" title="Previous"><span data-ico="prev"></span></button>
+      <button class="play-btn" id="pb-play" title="Play/Pause">
+        <svg class="play-ring" viewBox="0 0 60 60"><circle class="ring-bg" cx="30" cy="30" r="27"/><circle class="ring-fill" id="play-ring-fill" cx="30" cy="30" r="27"/></svg>
+        <span id="pb-play-ico" data-ico="play"></span>
+      </button>
+      <button class="icon-btn" id="pb-next" title="Next"><span data-ico="next"></span></button>
+      <button class="icon-btn" id="pb-repeat" title="Repeat"><span data-ico="repeat"></span></button>
+    </div>
+    <div class="pb-progress">
+      <span class="pb-time" id="pb-cur">0:00</span>
+      <canvas id="pb-wave"></canvas>
+      <span class="pb-time" id="pb-dur">0:00</span>
+    </div>
+  </div>
+  <div class="pb-right">
+    <span class="pb-bpm mono" id="pb-bpm">-- BPM</span>
+    <button class="icon-btn vol-btn" id="pb-mute" title="Mute"><span data-ico="volume"></span></button>
+    <input type="range" id="pb-vol" min="0" max="100" value="80">
+  </div>
+</footer>
+
+<div class="queue-panel" id="queue-panel">
+  <div class="queue-head"><strong>Queue</strong><button class="icon-btn" id="queue-close"><span data-ico="x"></span></button></div>
+  <div class="queue-list" id="queue-list"></div>
+</div>
+
+<div class="overlay" id="search-overlay">
+  <div class="search-modal">
+    <div class="search-modal-input"><span data-ico="search"></span><input id="search-input" type="text" placeholder="Search songs, artists, albums…" autocomplete="off"></div>
+    <div class="search-results" id="search-results"></div>
+  </div>
+</div>
+
+<div class="overlay" id="menu-overlay"></div>
+<div id="toasts"></div>
+<div id="drop-hint">Drop your music folder here</div>
+
+<script src="js/util.js"></script>
+<script src="js/demo-data.js"></script>
+<script src="js/player.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
