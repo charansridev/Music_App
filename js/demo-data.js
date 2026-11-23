@@ -88,8 +88,21 @@ function mulberry(a) {
   };
 }
 
+function songTech(id) {
+  let h = 7;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const specs = [
+    { spec: '44.1kHz / 16b', short: 'FLAC 16/44.1', quant: '16-BIT FLAC', hz: '44.100 kHz' },
+    { spec: '48kHz / 24b', short: 'FLAC 24/48', quant: '24-BIT FLAC', hz: '48.000 kHz' },
+    { spec: '96kHz / 24b', short: 'FLAC 24/96', quant: '24-BIT FLAC', hz: '96.000 kHz' },
+    { spec: 'DSD 2.8MHz', short: 'DSD 2.8', quant: 'DSD 1-BIT', hz: '2.8224 MHz' },
+  ];
+  const s = specs[h % specs.length];
+  return { ...s, dr: 'DR' + (11 + (h >> 2) % 6), hires: h % specs.length >= 2 };
+}
+
 function buildLibrary() {
-  const songs = DEMO_SONGS.map(s => ({ ...s, src: null }));
+  const songs = DEMO_SONGS.map(s => ({ ...s, src: null, ...songTech(s.id) }));
   const albumMap = new Map();
   const artistMap = new Map();
   songs.forEach(s => {

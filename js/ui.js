@@ -1,162 +1,189 @@
-// All view renderers. Pure HTML-string builders + a few interactive helpers.
+// All view renderers — NOTHING AUDIO OS hardware workspace.
 const UI = {
-  currentView: 'home',
-  libTab: 'albums',
+  currentView: 'deck',
+  libTab: 'songs',
   libGenre: 'All',
   libSort: 'newest',
   chartMode: '7d',
   statsTab: 'overview',
+  logFilter: 'all',
 
   render() {
     const v = this.currentView;
-    const html = this[`v_${v}`] ? this[`v_${v}`]() : `<div class="empty">Coming soon</div>`;
-    const el = document.getElementById('view');
-    el.innerHTML = html;
+    const html = this[`v_${v}`] ? this[`v_${v}`]() : `<div class="empty">MODULE OFFLINE</div>`;
+    document.getElementById('view').innerHTML = html;
     this.updateBreadcrumb(v);
-    document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v.split('/')[0] || (v.startsWith('playlist/') && a.dataset.view === 'playlists')));
-    if (v === 'home' || v === 'stats') this.renderChart(v);
+    document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v.split('/')[0] || (v.startsWith('playlist/') && a.dataset.view === 'stash')));
+    if (v === 'stats') this.renderChart();
+    this.updateSidebar();
+    FX.onTrackChange(Player.current());
   },
 
   updateBreadcrumb(v) {
     const bc = document.getElementById('breadcrumb');
-    const crumb = (path) => `<span>◉ NOTHING</span> &nbsp;›&nbsp; <b>${path}</b>`;
-    if (v === 'home') bc.innerHTML = crumb('Home');
-    else if (v === 'library') bc.innerHTML = crumb('Library › ' + { songs: 'Songs', albums: 'Albums', artists: 'Artists' }[this.libTab]);
-    else if (v === 'loved') bc.innerHTML = crumb('Loved');
-    else if (v === 'playlists') bc.innerHTML = crumb('Playlists');
-    else if (v.startsWith('playlist/')) {
+    if (!bc) return;
+    const crumb = path => `<span>◉ NOTHING (R)</span> &nbsp;›&nbsp; <b>${path}</b>`;
+    const map = { deck: 'ACTIVE DECK', library: 'MASTER LIBRARY', stash: 'TAPE STASH', hires: 'HI-RES VAULT', stats: 'TELEMETRY', settings: 'SYSTEM', help: 'HELP' };
+    if (v.startsWith('playlist/')) {
       const pl = App.playlists.find(p => p.id === v.split('/')[1]);
-      bc.innerHTML = crumb(pl ? `Playlists › ${esc(pl.name)}` : 'Playlists');
-    }
-    else if (v === 'stats') bc.innerHTML = crumb('Stats');
-    else if (v === 'settings') bc.innerHTML = crumb('Settings');
-    else if (v === 'help') bc.innerHTML = crumb('Help');
-    else if (v === 'podcasts') bc.innerHTML = crumb('Podcasts');
+      bc.innerHTML = crumb(pl ? `TAPE STASH › ${esc(pl.name).toUpperCase()}` : 'TAPE STASH');
+    } else bc.innerHTML = crumb(map[v] || v.toUpperCase());
+  },
+
+  updateSidebar() {
+    const $ = id => document.getElementById(id);
+    if (!$('nav')) return;
+    $('nav-count-library').textContent = App.songs.length;
+    $('nav-count-stash').textContent = App.playlists.length + App.loved.size;
+    $('nav-count-hires').textContent = App.songs.filter(s => s.hires).length;
+    $('nav-deck-status').textContent = Player.isPlaying() ? 'PLAYING' : 'IDLE';
   },
 
   /* ---------- shared fragments ---------- */
-  songRow(song, i, opts = {}) {
+  trackRow(song, i, opts = {}) {
     const cur = Player.current();
     const isCur = cur && cur.id === song.id;
-    const loved = App.loved.has(song.id);
-    return `<div class="song-row ${isCur ? 'playing' : ''}" data-song="${song.id}" data-i="${i}">
-      ${opts.number !== false ? `<div class="idx">${isCur && Player.isPlaying() ? '<span class="q-eq"><i></i><i></i><i></i></span>' : dotNumber(i + 1)}</div>` : '<div></div>'}
-      <div class="thumb" style="background-image:url('${song.art}')"></div>
-      <div style="min-width:0"><div class="s-title">${esc(song.title)}</div><div class="s-sub">${esc(song.artist)}</div></div>
-      <div class="s-sub" style="min-width:0">${esc(song.album)}</div>
-      <div class="row-actions">
-        <button class="icon-btn heart-btn ${loved ? 'on' : ''}" data-action="love" data-song="${song.id}" title="Love">${ico('heart')}</button>
-        <button class="icon-btn" data-action="menu" data-song="${song.id}">${ico('dots')}</button>
-      </div>
-      <div class="s-dur">${fmtTime(song.duration)}</div>
-    </div>`;
+    return `<tr class="${isCur ? 'playing' : ''}" data-song="${song.id}" data-i="${i}">
+      <td class="st"><span class="st-dot"></span></td>
+      <td class="idx">${String(i + 1).padStart(2, '0')}</td>
+      <td class="composition"><div class="t1">${esc(song.title)}</div><div class="t2">${esc(song.artist)}</div></td>
+      <td class="release">${esc(song.album)} (${song.year}${opts.master ? ' Master' : ''})</td>
+      <td><span class="spec-badge ${song.hires ? 'hi' : ''}">${song.spec}</span></td>
+      <td class="dr">${song.dr}</td>
+      <td class="dur">${fmtTime(song.duration)}</td>
+    </tr>`;
   },
 
-  songList(songs, opts = {}) {
-    if (!songs.length) return `<div class="empty">${opts.empty || 'Nothing here yet'}</div>`;
-    return `<div class="song-list">${songs.map((s, i) => this.songRow(s, i, opts)).join('')}</div>`;
+  trackTable(songs, opts = {}) {
+    if (!songs.length) return `<div class="empty">${opts.empty || 'NO TRANSMISSIONS'}</div>`;
+    return `<table class="hw-table"><thead><tr>
+      <th>ST</th><th>IDX</th><th>COMPOSITION / PERFORMER</th><th>RELEASE</th><th>SPEC</th><th>DR</th><th style="text-align:right">DUR</th>
+    </tr></thead><tbody>${songs.map((s, i) => this.trackRow(s, i, opts)).join('')}</tbody></table>`;
   },
 
-  /* ---------- Home ---------- */
-  v_home() {
-    const now = Player.current();
-    const hour = new Date().getHours();
-    const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-    const lovedCount = App.loved.size;
-    const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
-    const streak = Stats.streak();
-    const totalMin = Stats.todayMs();
-    const heroTag = now && Player.isPlaying() ? 'Now playing' : 'Up next';
-    const heroSong = now || App.songs[0];
-
+  /* ---------- ACTIVE DECK ---------- */
+  v_deck() {
+    const cur = Player.current() || App.songs[0];
+    const songs = App.songs.filter(s =>
+      this.logFilter === 'all' ||
+      (this.logFilter === 'flac' && s.spec.includes('kHz')) ||
+      (this.logFilter === 'dsd' && s.spec.includes('DSD'))
+    );
     return `
-    <div style="padding:6px 4px 16px">
-      <div class="page-title">${greet}, Noor</div>
-      <div class="page-sub">${dateStr} &nbsp;·&nbsp; ${lovedCount} loved songs &nbsp;·&nbsp; ${App.playlists.length} playlists</div>
-    </div>
-    <div class="hero-grid">
-      <div class="hero">
-        <canvas id="hero-dots"></canvas>
-        <div class="hero-info">
-          <div class="hero-tag"><span class="dot"></span>${heroTag}</div>
-          <div class="hero-title">${esc(heroSong.title)}</div>
-          <div class="hero-sub">${esc(heroSong.artist)} &nbsp;·&nbsp; ${esc(heroSong.album)}</div>
-          <div class="hero-actions">
-            <button class="btn btn-primary" data-action="play-something">${ico('play')} Play something</button>
-            <button class="btn btn-ghost" data-action="shuffle-loved">${ico('shuffle')} Shuffle loved</button>
+    <div class="deck-grid">
+      <section class="deck-card hw-card">
+        <div class="deck-head">
+          <div>
+            <div class="deck-eyebrow">
+              <span class="red-tally"></span>
+              STUDIO REEL MASTER DECK // CH-A
+              <span class="hi-res-tag">HI-RES AUDIO</span>
+            </div>
+            <h1 class="deck-title">${esc(cur.artist)}</h1>
+            <p class="deck-trackline">TRACK: <b>${esc(cur.title).toUpperCase()}</b> · ALBUM: <b>${esc(cur.album)}</b> (<span class="lossless">${cur.hires ? 'LOSSLESS ' + cur.hz : cur.spec}</span>)</p>
+          </div>
+          <div class="deck-specs">
+            <div class="deck-spec"><span class="k">SAMPLING FREQ</span><span class="v amber" id="spec-hz">${cur.hz}</span></div>
+            <div class="deck-spec"><span class="k">QUANTIZATION</span><span class="v cyan" id="spec-quant">${cur.quant}</span></div>
+            <div class="deck-spec"><span class="k">DYNAMIC RANGE</span><span class="v red" id="spec-dr">${cur.dr} (HI-RES)</span></div>
           </div>
         </div>
-        <div class="hero-art-wrap">
-          <div class="bpm-ring ${Player.isPlaying() ? 'beat' : ''}"></div>
-          <div class="hero-art scanlines" style="background-image:url('${heroSong.art}');--art-glow:${(GENRE_COLORS[heroSong.genre] || '#FF2D2D') + '55'}"></div>
-          <div class="hero-eq ${Player.isPlaying() ? 'live' : 'idle'}"><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span></div>
-        </div>
-        <div class="hero-today"><span class="badge">${fmtMin(totalMin)}</span> today · goal met — nice</div>
-      </div>
-      <div class="tiles">
-        <div class="tile-row">
-          <div class="tile red"><div class="tile-ico">${ico('note')}</div><div class="tile-label">Songs played</div><div class="tile-value">${Stats.totalPlays()}</div><div class="tile-delta">all-time</div></div>
-          <div class="tile amber"><div class="tile-ico">${ico('heart')}</div><div class="tile-label">Loved songs</div><div class="tile-value">${lovedCount}</div><div class="tile-delta">in your library</div></div>
-        </div>
-        <div class="tile-row">
-          <div class="tile cyan"><div class="tile-ico">${ico('clock')}</div><div class="tile-label">Hours listened</div><div class="tile-value">${fmtHours(Stats.totalMs())}</div><div class="tile-delta">all-time</div></div>
-          <div class="tile green"><div class="tile-ico">${ico('fire')}</div><div class="tile-label">Current streak</div><div class="tile-value">${streak}</div><div class="tile-delta">days in a row · best ${Math.max(streak, 11)}</div></div>
-        </div>
-      </div>
-    </div>
-    <div class="home-bottom">
-      <div class="card panel">
-        <div class="panel-head">
-          <div class="section-title">Your listening</div>
-          <div class="seg">
-            <button data-action="chart-mode" data-mode="7d" class="${this.chartMode === '7d' ? 'active' : ''}">7 days</button>
-            <button data-action="chart-mode" data-mode="8w" class="${this.chartMode === '8w' ? 'active' : ''}">8 weeks</button>
+        <div class="deck-center">
+          <div class="platter" id="platter">
+            <div class="glyph-ring">
+              <span class="gl-seg t"></span><span class="gl-seg tr"></span><span class="gl-seg r"></span><span class="gl-seg br"></span>
+              <span class="gl-seg b"></span><span class="gl-seg bl"></span><span class="gl-seg l"></span><span class="gl-seg tl"></span>
+            </div>
+            <div class="strobe-ring"></div>
+            <div class="platter-core spool" id="platter-core">
+              <i class="spoke h1"></i><i class="spoke v1"></i><i class="spoke d1"></i><i class="spoke d2"></i>
+              <div class="platter-hub"><i></i></div>
+            </div>
+            <div class="tacho"><span class="td"></span><b>GLYPH TACHO</b><span class="font-dot">33⅓</span></div>
+          </div>
+          <div class="deck-right">
+            <div class="counter-box">
+              <div>
+                <div class="k">TIME INDEX / COUNTER <span class="bit-exact">BIT-EXACT</span></div>
+                <span class="counter-cur" id="tc-cur">00:00.00</span>
+              </div>
+              <div style="text-align:right">
+                <span class="counter-rem-k">REMAINING / RUNTIME</span>
+                <span class="counter-rem" id="tc-rem">-00:00.00</span>
+              </div>
+            </div>
+            <div class="ruler-wrap">
+              <div class="ruler" id="ruler">
+                <div class="ticks ruler-tape"></div>
+                <div class="ticks-major ruler-tape-major"></div>
+                <div class="ruler-fill" id="ruler-fill"><span class="tpoint" id="tpoint">T-POINT 0.0%</span></div>
+              </div>
+              <div class="ruler-scale"><span>00:00.00</span><span class="mid">SEC ${fmtTime(cur.duration / 2)}.00</span><span class="end">TOTAL ${fmtTime(cur.duration)}.00</span></div>
+            </div>
+            <div class="transport-row">
+              <button class="milled-button hw-press" id="t-prev">⏮ PREV</button>
+              <button class="milled-button hw-press t-stop" id="t-stop"><span class="redbit"></span>STOP</button>
+              <button class="milled-button hw-press t-playpause" id="t-pp"><span class="pp" id="t-pp-icon">❚❚</span><span id="t-pp-label">PAUSE</span></button>
+              <button class="milled-button hw-press" id="t-next">NEXT ⏭</button>
+            </div>
           </div>
         </div>
-        <div id="listen-chart"></div>
-        <div style="margin-top:12px;font-size:11px;color:var(--muted);font-weight:600">30 min in the last 7 days · avg ${fmtMin(Stats.avgDayMs() * 7)} a day · 30-min goal</div>
-      </div>
-      <div class="card panel">
-        <div class="panel-head"><div class="section-title">Your genre mix</div><span style="font-size:11px;color:var(--muted);font-weight:700">Stats ›</span></div>
-        <div id="genre-mix">${this.genreMix()}</div>
-      </div>
+        <div class="deck-telemetry">
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <span>BURST RATE: <b>2.82 Mbps</b></span>
+            <span class="ch">CH: <b>STEREO ${App.switches.mono ? '1.0 MONO' : '2.0'}</b></span>
+            <span class="nf">NOISE FLOOR: <b>-118 dB</b></span>
+          </div>
+          <div class="lock-line">
+            <span class="lock-dot"></span>
+            DIRECT MEMORY STREAMING
+            <span class="font-dot">[LOCKED]</span>
+            <button class="hw-tab" data-action="open-immersion" style="margin-left:8px">GLYPH FULLSCREEN ⛶</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="bottom-grid">
+      <section class="spectrum-card hw-card">
+        <div class="spec-head">
+          <div class="t"><span class="pd cyan" style="width:6px;height:6px;border-radius:50%;background:var(--cyan)"></span>16-BAND RTA ANALYZER</div>
+          <span class="weight-tag">WEIGHT: A-CURVE</span>
+        </div>
+        <div class="spectrum" id="spectrum">
+          ${Array.from({ length: 16 }, (_, i) => `<div class="sp-col ${i === 4 || i === 8 ? 'anchor' : ''}"><div class="sp-bar" id="sp-${i}"></div></div>`).join('')}
+        </div>
+        <div class="spec-scale"><span>20Hz</span><span>125Hz</span><b>1kHz</b><b>4kHz</b><span>16kHz</span></div>
+        <div class="spec-foot">
+          <span>PEAK RES: <b>104 Hz</b></span>
+          <span class="flat">RESPONSE: FLAT</span>
+        </div>
+      </section>
+
+      <section class="log-card hw-card">
+        <div class="log-head">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span class="t">TRANSMISSION LOG // MASTER RELEASES</span>
+            <span class="sub" id="log-count">SHOWING ${songs.length} OF ${App.songs.length} TRACKS</span>
+          </div>
+          <div class="log-filters">
+            <button class="log-chip ${this.logFilter === 'all' ? 'active' : ''}" data-action="log-filter" data-f="all">ALL FORMATS</button>
+            <button class="log-chip ${this.logFilter === 'flac' ? 'active' : ''}" data-action="log-filter" data-f="flac">FLAC 24</button>
+            <button class="log-chip ${this.logFilter === 'dsd' ? 'active' : ''}" data-action="log-filter" data-f="dsd">DSD / DSF</button>
+            <button class="log-chip" data-action="toggle-queue">QUEUE (${Player.queue.length})</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">${this.trackTable(songs)}</div>
+        <div class="log-foot">
+          <span>INDEX ARCHIVE: ~/AUDIO_FLAC_DIR</span>
+          <span class="ok">CHECK INTEGRITY: ALL MD5 VERIFIED</span>
+        </div>
+      </section>
     </div>`;
   },
 
-  genreMix() {
-    const rows = Stats.topGenres();
-    if (!rows.length) return '<div class="empty">Play something to build your mix</div>';
-    return rows.map(r => `
-      <div class="genre-row">
-        <div class="g-head"><span>${esc(r.genre)}</span><span>${r.pct}%</span></div>
-        <div class="genre-track"><div class="genre-fill" style="width:${r.pct}%;background:${GENRE_COLORS[r.genre] || 'var(--accent)'}"></div></div>
-      </div>`).join('');
-  },
-
-  renderChart(view) {
-    const data = this.chartMode === '7d' ? Stats.last7Days() : Stats.last8Weeks();
-    const max = Math.max(...data.map(d => d.ms), 1);
-    const goal = view === 'home' ? 30 * 60000 * (this.chartMode === '7d' ? 1 : 7) : 0;
-    const goalPct = goal && goal < max ? Math.round((1 - goal / max) * 100) : null;
-    const chartId = view === 'home' ? 'listen-chart' : 'stats-chart';
-    const el = document.getElementById(chartId);
-    if (!el) return;
-    el.innerHTML = `
-      <div class="chart">
-        ${goalPct !== null ? `<div class="goal-line" style="bottom:${100 - goalPct}%"><span class="goal-label">30-min goal</span></div>` : ''}
-        ${data.map((d, i) => `
-          <div class="bar">
-            <div class="fill ${i === data.length - 1 && this.chartMode === '7d' ? '' : 'dim'}" style="height:${Math.max(2, d.ms / max * 88)}%" title="${fmtMin(d.ms)}"></div>
-            <div class="lbl">${d.label}</div>
-          </div>`).join('')}
-      </div>`;
-    if (view === 'home') {
-      const gm = document.getElementById('genre-mix');
-      if (gm) gm.innerHTML = this.genreMix();
-    }
-  },
-
-  /* ---------- Library ---------- */
+  /* ---------- MASTER LIBRARY ---------- */
   v_library() {
     const genres = ['All', ...App.genres];
     let songs = App.songs.filter(s => this.libGenre === 'All' || s.genre === this.libGenre);
@@ -165,7 +192,7 @@ const UI = {
 
     let body = '';
     if (this.libTab === 'songs') {
-      body = this.songList(songs);
+      body = this.trackTable(songs);
     } else if (this.libTab === 'albums') {
       let albums = App.albums.filter(a => this.libGenre === 'All' || a.genre === this.libGenre);
       if (this.libSort === 'az') albums = albums.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -173,87 +200,100 @@ const UI = {
       body = `<div class="album-grid">${albums.map(a => `
         <div class="album-card" data-album="${esc(a.key)}">
           <div class="album-art" style="background-image:url('${a.art}')"></div>
-          <button class="play-fab" data-action="play-album" data-album="${esc(a.key)}">${ico('play')}</button>
+          <button class="play-fab" data-action="play-album" data-album="${esc(a.key)}" title="Play album">▶</button>
           <div class="album-name">${esc(a.name)}</div>
-          <div class="album-meta">${esc(a.artist)} · ${a.year}</div>
+          <div class="album-meta">${esc(a.artist)} · ${a.year} · <span class="amber">${a.songIds.every(id => App.songs.find(s => s.id === id)?.hires) ? 'HI-RES' : 'STANDARD'}</span></div>
         </div>`).join('')}</div>`;
     } else {
       body = `<div class="artist-grid">${App.artists.map(a => `
         <div class="artist-card" data-artist="${esc(a.name)}" data-action="play-artist">
           <div class="artist-pic" style="background-image:url('${a.art}')"></div>
           <div class="album-name">${esc(a.name)}</div>
-          <div class="album-meta">${a.songIds.length} songs</div>
+          <div class="album-meta">${a.songIds.length} TRANSMISSIONS</div>
         </div>`).join('')}</div>`;
     }
 
     return `
-    <div style="padding:6px 4px 0">
-      <div class="page-title">Library</div>
-      <div class="page-sub">${App.songs.length} songs · ${App.albums.length} albums · ${fmtMin(App.songs.reduce((a, s) => a + s.duration, 0) * 1000)} of music</div>
-    </div>
-    <div class="tabs">
-      ${['songs', 'albums', 'artists'].map(t => `<button data-action="lib-tab" data-tab="${t}" class="${this.libTab === t ? 'active' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
-    </div>
-    <div class="toolbar-row">
-      <div class="chips">
-        ${genres.map(g => `<button class="chip ${this.libGenre === g ? 'active' : ''}" data-action="lib-genre" data-genre="${esc(g)}">${esc(g)} <span class="n">${g === 'All' ? App.songs.length : App.songs.filter(s => s.genre === g).length}</span></button>`).join('')}
+    <div class="page-head">
+      <div>
+        <div class="page-title">Master Library</div>
+        <div class="page-sub">${App.songs.length} SONGS · ${App.albums.length} RELEASES · ${fmtMin(App.songs.reduce((a, s) => a + s.duration, 0) * 1000)} OF MUSIC</div>
       </div>
-      <button class="chip" data-action="lib-sort">${ico('shuffle')} ${this.libSort === 'az' ? 'A–Z' : 'Newest'}</button>
+      <button class="hw-tab" data-action="lib-sort">${this.libSort === 'az' ? 'SORT: A–Z' : 'SORT: NEWEST'}</button>
     </div>
+    <div class="hw-tabs">
+      ${['songs', 'albums', 'artists'].map(t => `<button class="hw-tab ${this.libTab === t ? 'active' : ''}" data-action="lib-tab" data-tab="${t}">${t}</button>`).join('')}
+    </div>
+    ${this.libTab === 'songs' ? `<div class="hw-chips">${genres.map(g => `<button class="hw-chip ${this.libGenre === g ? 'active' : ''}" data-action="lib-genre" data-genre="${esc(g)}">${esc(g.toUpperCase())} <span class="n">${g === 'All' ? App.songs.length : App.songs.filter(s => s.genre === g).length}</span></button>`).join('')}</div>` : ''}
     ${body}`;
   },
 
-  /* ---------- Loved ---------- */
-  v_loved() {
-    const songs = App.songs.filter(s => App.loved.has(s.id));
+  /* ---------- HI-RES VAULT ---------- */
+  v_hires() {
+    const songs = App.songs.filter(s => s.hires);
+    const dsd = songs.filter(s => s.spec.includes('DSD')).length;
     return `
-    <div style="padding:6px 4px 0">
-      <div class="page-title">Loved</div>
-      <div class="page-sub">${songs.length} songs you can't stop playing</div>
+    <div class="page-head">
+      <div>
+        <div class="page-title">Hi-Res Vault</div>
+        <div class="page-sub">${songs.length} MASTER FILES · ${dsd} DSD · BIT-PERFECT PLAYBACK GUARANTEED</div>
+      </div>
+      <button class="hw-tab" data-action="play-hires">▶ PLAY VAULT</button>
     </div>
-    <div style="margin:16px 0"><button class="btn btn-primary" data-action="shuffle-loved">${ico('shuffle')} Shuffle loved</button></div>
-    ${this.songList(songs, { empty: 'Tap the heart on any song to add it here' })}`;
+    ${this.trackTable(songs, { master: true, empty: 'NO HI-RES MASTERS FOUND' })}`;
   },
 
-  /* ---------- Playlists ---------- */
-  v_playlists() {
+  /* ---------- TAPE STASH ---------- */
+  v_stash() {
+    const loved = App.songs.filter(s => App.loved.has(s.id));
     return `
-    <div style="padding:6px 4px 0">
-      <div class="page-title">Playlists</div>
-      <div class="page-sub">${App.playlists.length} playlists · made by you</div>
+    <div class="page-head">
+      <div>
+        <div class="page-title">Tape Stash</div>
+        <div class="page-sub">${App.playlists.length} REELS · ${loved.length} LOVED TRANSMISSIONS</div>
+      </div>
+      <button class="hw-tab" data-action="new-playlist">+ NEW REEL</button>
     </div>
     <div class="pl-grid">
       ${App.playlists.map(p => {
         const songs = p.songIds.map(id => App.songs.find(s => s.id === id)).filter(Boolean);
         const cover = songs[0] ? songs[0].art : '';
         return `<div class="pl-card" data-action="open-playlist" data-pl="${p.id}">
-          <div class="pl-cover" style="background-image:url('${cover}')">${cover ? '' : ico('playlist')}</div>
+          <div class="pl-cover" style="background-image:url('${cover}')">${cover ? '' : '◉'}</div>
           <div class="album-name">${esc(p.name)}</div>
-          <div class="album-meta">${songs.length} songs</div>
+          <div class="album-meta">${songs.length} SONGS · REEL ${p.id.toUpperCase()}</div>
         </div>`;
       }).join('')}
-      <div class="pl-add" data-action="new-playlist">${ico('plus')} New playlist</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span class="pd red"></span>LOVED TRANSMISSIONS</div>
+        <button class="hw-tab" data-action="shuffle-loved">⇄ SHUFFLE LOVED</button>
+      </div>
+      ${this.trackTable(loved, { empty: 'MARK TRANSMISSIONS AS LOVED FROM THE DECK' })}
     </div>`;
   },
 
   v_playlist(id) {
     const pl = App.playlists.find(p => p.id === id);
-    if (!pl) return '<div class="empty">Playlist not found</div>';
+    if (!pl) return '<div class="empty">REEL NOT FOUND</div>';
     const songs = pl.songIds.map(sid => App.songs.find(s => s.id === sid)).filter(Boolean);
     return `
-    <div style="padding:6px 4px 8px">
-      <div class="page-title">${esc(pl.name)}</div>
-      <div class="page-sub">${songs.length} songs · ${fmtMin(songs.reduce((a, s) => a + s.duration, 0) * 1000)} of music</div>
+    <div class="page-head">
+      <div>
+        <div class="page-title">${esc(pl.name)}</div>
+        <div class="page-sub">${songs.length} SONGS · ${fmtMin(songs.reduce((a, s) => a + s.duration, 0) * 1000)} OF MUSIC</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="hw-btn primary" data-action="play-pl" data-pl="${pl.id}">▶ PLAY REEL</button>
+        <button class="hw-btn" data-action="rename-pl" data-pl="${pl.id}">RENAME</button>
+        <button class="hw-btn danger" data-action="delete-pl" data-pl="${pl.id}">ERASE</button>
+      </div>
     </div>
-    <div style="display:flex;gap:10px;margin:8px 0 16px">
-      <button class="btn btn-primary" data-action="play-pl" data-pl="${pl.id}">${ico('play')} Play</button>
-      <button class="btn btn-ghost" data-action="rename-pl" data-pl="${pl.id}">${ico('edit')} Rename</button>
-      <button class="btn btn-danger" data-action="delete-pl" data-pl="${pl.id}">${ico('trash')} Delete</button>
-    </div>
-    ${this.songList(songs)}`;
+    ${this.trackTable(songs)}`;
   },
 
-  /* ---------- Stats ---------- */
+  /* ---------- TELEMETRY (stats) ---------- */
   v_stats() {
     const tabs = ['overview', 'history', 'streak'];
     let body = '';
@@ -264,49 +304,50 @@ const UI = {
       const stops = buckets.map(b => { const from = acc / total * 100; acc += b.n; const to = acc / total * 100; return `${b.color} ${from}% ${to}%`; }).join(', ');
       const streak = Stats.streak();
       body = `
-      <div class="stats-grid">
-        <div class="card stat-box"><div class="num">${fmtMin(Stats.totalMs())}</div><div class="cap">Minutes listened</div></div>
-        <div class="card stat-box"><div class="num">${Stats.totalPlays()}</div><div class="cap">Songs played</div></div>
-        <div class="card stat-box"><div class="num">${fmtMin(Stats.avgDayMs())}</div><div class="cap">A day, on average</div></div>
-        <div class="card stat-box"><div class="num">${streak}</div><div class="cap">Current streak · days</div></div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="num">${fmtMin(Stats.totalMs())}</div><div class="cap">Minutes listened</div></div>
+        <div class="stat-box"><div class="num">${Stats.totalPlays()}</div><div class="cap">Songs played</div></div>
+        <div class="stat-box"><div class="num">${fmtMin(Stats.avgDayMs())}</div><div class="cap">A day, on average</div></div>
+        <div class="stat-box"><div class="num">${streak}</div><div class="cap">Current streak · days</div></div>
       </div>
-      <div class="stats-cols">
-        <div class="card panel">
-          <div class="panel-head"><div class="section-title">Minutes listened</div>
-          <div class="seg">
-            <button data-action="chart-mode" data-mode="7d" class="${this.chartMode === '7d' ? 'active' : ''}">7 days</button>
-            <button data-action="chart-mode" data-mode="8w" class="${this.chartMode === '8w' ? 'active' : ''}">8 weeks</button>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title"><span class="pd cyan"></span>MINUTES LISTENED</div>
+          <div class="hw-tabs">
+            <button class="hw-tab ${this.chartMode === '7d' ? 'active' : ''}" data-action="chart-mode" data-mode="7d">7 DAYS</button>
+            <button class="hw-tab ${this.chartMode === '8w' ? 'active' : ''}" data-action="chart-mode" data-mode="8w">8 WEEKS</button>
           </div></div>
           <div id="stats-chart"></div>
         </div>
-        <div class="card panel">
-          <div class="panel-head"><div class="section-title">When you listen</div></div>
-          <div class="donut-wrap">
-            <div class="donut" style="background:conic-gradient(${stops})">
-              <div class="donut-center"><div><b>${fmtMin(Stats.totalMs() / Math.max(1, Stats.totalPlays()))}</b><span>avg session</span></div></div>
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title"><span class="pd amber"></span>WHEN YOU LISTEN</div></div>
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div class="donut" style="width:130px;height:130px;border-radius:50%;background:conic-gradient(${stops});display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <div style="width:76px;height:76px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;text-align:center">
+                <div><b class="font-dot" style="font-size:14px;color:#fff">${fmtMin(Stats.totalMs() / Math.max(1, Stats.totalPlays()))}</b><div style="font-family:'Space Mono',monospace;font-size:7px;color:var(--ink-4);letter-spacing:.1em">AVG SESSION</div></div>
+              </div>
             </div>
-            <div class="legend">
-              ${buckets.map(b => `<div class="l-row"><span class="l-row" style="gap:8px"><span class="l-dot" style="background:${b.color}"></span>${b.name}</span><span>${Math.round(b.n / total * 100)}%</span></div>`).join('')}
+            <div style="flex:1;min-width:180px">
+              ${buckets.map(b => `<div class="genre-row"><div class="g-head"><span>${b.name.toUpperCase()}</span><span>${Math.round(b.n / total * 100)}%</span></div><div class="genre-track"><div class="genre-fill" style="width:${Math.round(b.n / total * 100)}%;background:${b.color}"></div></div></div>`).join('')}
             </div>
           </div>
         </div>
       </div>`;
     } else if (this.statsTab === 'history') {
-      const days = Stats.historyByDay().slice(0, 14);
-      body = days.map(d => `
-        <div class="history-day">
-          <div class="hd-date">${fmtDay(d.ts)} · ${d.plays.length} plays · ${fmtMin(d.plays.reduce((a, p) => a + (p.ms || 0), 0))}</div>
+      body = Stats.historyByDay().slice(0, 14).map(d => `
+        <div class="history-day hw-card">
+          <div class="hd-date">${fmtDay(d.ts)} · ${d.plays.length} PLAYS · ${fmtMin(d.plays.reduce((a, p) => a + (p.ms || 0), 0))}</div>
           ${d.plays.slice(0, 6).map(p => {
             const s = App.songs.find(x => x.id === p.songId);
             if (!s) return '';
-            return `<div class="song-row" data-song="${s.id}" style="cursor:default">
-              <div class="idx">${new Date(p.ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
-              <div class="thumb" style="background-image:url('${s.art}')"></div>
-              <div style="min-width:0"><div class="s-title">${esc(s.title)}</div><div class="s-sub">${esc(s.artist)}</div></div>
-              <div></div><div></div><div class="s-dur">${fmtMin(p.ms || 0)}</div>
+            return `<div class="hist-row">
+              <span class="hist-time">${new Date(p.ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+              <div class="hist-thumb" style="background-image:url('${s.art}')"></div>
+              <div class="hist-t"><div class="t1">${esc(s.title)}</div><div class="t2">${esc(s.artist)}</div></div>
+              <span class="hist-ms">${fmtMin(p.ms || 0)}</span>
             </div>`;
           }).join('')}
-        </div>`).join('') || '<div class="empty">No history yet</div>';
+        </div>`).join('') || '<div class="empty">NO HISTORY YET</div>';
     } else {
       const streak = Stats.streak();
       const days = new Set(App.history.map(h => dayKey(h.ts)));
@@ -314,122 +355,141 @@ const UI = {
       const d = new Date();
       for (let i = 0; i < 35; i++) { dots.unshift(days.has(dayKey(d.getTime()))); d.setDate(d.getDate() - 1); }
       body = `
-      <div class="stats-grid">
-        <div class="card stat-box"><div class="num">${streak}</div><div class="cap">Current streak · days</div></div>
-        <div class="card stat-box"><div class="num">${Math.max(11, streak)}</div><div class="cap">Best streak · days</div></div>
-        <div class="card stat-box"><div class="num">${fmtMin(Stats.todayMs())}</div><div class="cap">Today vs ${App.goalMin} min goal</div></div>
-        <div class="card stat-box"><div class="num">${Math.round(Stats.avgDayMs() / 60000)}</div><div class="cap">Avg day · min</div></div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="num">${streak}</div><div class="cap">Current streak · days</div></div>
+        <div class="stat-box"><div class="num">${Math.max(11, streak)}</div><div class="cap">Best streak · days</div></div>
+        <div class="stat-box"><div class="num">${fmtMin(Stats.todayMs())}</div><div class="cap">Today vs ${App.goalMin} min goal</div></div>
+        <div class="stat-box"><div class="num">${Math.round(Stats.avgDayMs() / 60000)}</div><div class="cap">Avg day · min</div></div>
       </div>
-      <div class="card panel">
-        <div class="panel-head"><div class="section-title">Last 5 weeks</div><span style="font-size:11px;color:var(--muted);font-weight:700">a dot a day</span></div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title"><span class="pd green"></span>LAST 5 WEEKS</div><span class="page-sub">A DOT A DAY</span></div>
         <div class="streak-dots">${dots.map(h => `<div class="streak-dot ${h ? 'hit' : ''}"></div>`).join('')}</div>
         <div style="margin-top:16px;display:flex;align-items:center;gap:10px">
-          <span style="font-weight:700;font-size:12.5px">Daily goal</span>
-          <input type="number" id="goal-input" value="${App.goalMin}" min="5" max="480" style="width:70px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:700">
-          <span style="color:var(--muted);font-size:12px;font-weight:600">min / day</span>
+          <span class="page-sub">DAILY GOAL</span>
+          <input type="number" id="goal-input" value="${App.goalMin}" min="5" max="480" style="width:70px;background:#121212;border:1px solid #262626;color:#fff;padding:6px 8px;font-size:11px;outline:none">
+          <span class="page-sub">MIN / DAY</span>
         </div>
       </div>`;
     }
     return `
-    <div style="padding:6px 4px 0">
-      <div class="page-title">Stats</div>
-      <div class="page-sub">${App.songs.length} songs in the last 60 days · ${App.loved.size} loved songs · ${App.playlists.length} playlists</div>
-    </div>
-    <div class="tabs">
-      ${tabs.map(t => `<button data-action="stats-tab" data-tab="${t}" class="${this.statsTab === t ? 'active' : ''}">${t[0].toUpperCase() + t.slice(1)}${t === 'streak' ? ' & goal' : ''}</button>`).join('')}
+    <div class="page-head">
+      <div>
+        <div class="page-title">Telemetry</div>
+        <div class="page-sub">${App.songs.length} SONGS · 60-DAY WINDOW · ${App.loved.size} LOVED · ${App.playlists.length} REELS</div>
+      </div>
+      <div class="hw-tabs">
+        ${tabs.map(t => `<button class="hw-tab ${this.statsTab === t ? 'active' : ''}" data-action="stats-tab" data-tab="${t}">${t.toUpperCase()}</button>`).join('')}
+      </div>
     </div>
     ${body}`;
   },
 
-  /* ---------- Settings / stubs ---------- */
-  v_settings() {
-    return `
-    <div style="padding:6px 4px 0"><div class="page-title">Settings</div><div class="page-sub">Tune your listening room</div></div>
-    <div class="card panel" style="max-width:520px;margin-top:16px">
-      <div class="panel-head"><div class="section-title">Appearance</div></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
-        <span style="font-weight:500">Light mode</span>
-        <span class="mono" style="font-size:10px;color:var(--neon-red);letter-spacing:.12em">◉ LOCKED — NO LIGHT MODE. EVER.</span>
-      </div>
-      <div class="panel-head" style="margin-top:18px"><div class="section-title">Demo data</div></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" data-action="reset-demo">${ico('shuffle')} Reset demo library</button>
-        <button class="btn btn-danger btn-sm" data-action="clear-history">${ico('trash')} Clear play history</button>
-      </div>
-      <p style="margin-top:14px;font-size:12px;color:var(--muted);font-weight:600;line-height:1.5">Demo mode: 13 sample songs are generated locally. Folder scanning + real music files arrive in the next milestone.</p>
-    </div>`;
+  renderChart() {
+    const el = document.getElementById('stats-chart');
+    if (!el) return;
+    const data = this.chartMode === '7d' ? Stats.last7Days() : Stats.last8Weeks();
+    const max = Math.max(...data.map(d => d.ms), 1);
+    el.innerHTML = `<div class="chart">${data.map((d, i) => `
+      <div class="bar">
+        <div class="fill ${i === data.length - 1 && this.chartMode === '7d' ? 'today' : 'dim'}" style="height:${Math.max(2, d.ms / max * 88)}%" title="${fmtMin(d.ms)}"></div>
+        <div class="lbl">${d.label}</div>
+      </div>`).join('')}</div>`;
   },
 
-  v_podcasts() {
-    return `<div class="empty">${ico('mic')}<div>Podcasts are coming once local folder support lands.</div></div>`;
+  /* ---------- SYSTEM ---------- */
+  v_settings() {
+    const sw = App.switches;
+    const row = (label, desc, id, on, cls) => `
+      <div class="setting-row">
+        <div><div>${label}</div><div class="desc">${desc}</div></div>
+        <button class="hw-switch ${cls} ${on ? 'on' : ''}" data-action="sw" data-sw="${id}" data-on="${on}"><i></i></button>
+      </div>`;
+    return `
+    <div class="page-head"><div><div class="page-title">System</div><div class="page-sub">AUDIO OS · TP-01 · TUNE YOUR RIG</div></div></div>
+    <div class="panel" style="max-width:560px">
+      <div class="panel-head"><div class="panel-title"><span class="pd red"></span>DSP CHANNELS</div></div>
+      ${row('Glyph Soundwire', 'Reel lights react 1:1 to the audio signal', 'glyphSync', sw.glyphSync, 'cyan')}
+      ${row('Crossfeed DSP', 'Analogue-style speaker crossfeed between channels', 'crossfeed', sw.crossfeed, 'cyan')}
+      ${row('Mono downmix', 'Sum stereo output to a single channel', 'mono', sw.mono, 'cyan')}
+    </div>
+    <div class="panel" style="max-width:560px">
+      <div class="panel-head"><div class="panel-title"><span class="pd amber"></span>DEMO DATA</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="hw-btn" data-action="reset-demo">⟲ RESET DEMO LIBRARY</button>
+        <button class="hw-btn danger" data-action="clear-history">ERASE PLAY HISTORY</button>
+      </div>
+      <p style="margin-top:14px;font-family:'Space Mono',monospace;font-size:10px;color:var(--ink-3);line-height:1.7">DEMO MODE: 13 SAMPLE TRACKS GENERATED LOCALLY. FOLDER SCANNING + REAL MUSIC FILES ARRIVE IN THE NEXT MILESTONE.</p>
+    </div>`;
   },
 
   v_help() {
     return `
-    <div style="padding:6px 4px 0"><div class="page-title">Help</div><div class="page-sub">Shortcuts & tips</div></div>
-    <div class="card panel" style="max-width:520px;margin-top:16px">
-      ${[['Space', 'Play / pause'], ['← / →', 'Seek ±5 s'], ['Shift + ← / →', 'Previous / next track'], ['Ctrl K', 'Search'], ['Double-click', 'Play a song row']].map(([k, d]) => `
-        <div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:600">
-          <span class="kbd" style="font-size:12px;padding:6px 12px">${k}</span><span style="color:var(--muted)">${d}</span>
-        </div>`).join('')}
+    <div class="page-head"><div><div class="page-title">Help</div><div class="page-sub">SHORTCUTS & FIELD MANUAL</div></div></div>
+    <div class="panel" style="max-width:560px">
+      ${[['SPACE', 'Play / pause'], ['← / →', 'Seek ±5 s'], ['SHIFT + ← / →', 'Previous / next track'], ['CTRL K', 'Archive search'], ['ESC', 'Exit immersion / close overlays'], ['Q', 'Toggle transmission queue']].map(([k, d]) => `
+        <div class="help-row"><kbd>${k}</kbd><span class="d">${d}</span></div>`).join('')}
     </div>`;
   },
 
-  /* ---------- Queue ---------- */
+  /* ---------- queue ---------- */
   renderQueue() {
     const list = document.getElementById('queue-list');
+    if (!list) return;
+    const count = document.getElementById('q-count');
+    if (count) count.textContent = Player.queue.length;
     list.innerHTML = Player.queue.map((s, i) => `
       <div class="q-row ${i === Player.qIndex ? 'current' : ''}" data-action="q-jump" data-i="${i}">
         <div class="q-thumb" style="background-image:url('${s.art}')"></div>
-        <div style="min-width:0;flex:1"><div class="s-title">${esc(s.title)}</div><div class="s-sub">${esc(s.artist)}</div></div>
-        ${i === Player.qIndex && Player.isPlaying() ? '<span class="q-eq"><i></i><i></i><i></i></span>' : `<button class="icon-btn" data-action="q-remove" data-i="${i}" style="width:26px;height:26px">${ico('x')}</button>`}
-      </div>`).join('') || '<div class="empty">Queue is empty</div>';
+        <div style="min-width:0;flex:1"><div class="t1">${esc(s.title)}</div><div class="t2">${esc(s.artist)}</div></div>
+        ${i === Player.qIndex && Player.isPlaying() ? '<span class="q-eq"><i></i><i></i><i></i></span>' : `<button class="q-x" data-action="q-remove" data-i="${i}">✕</button>`}
+      </div>`).join('') || '<div class="empty">QUEUE IS EMPTY</div>';
+    const qbtn = document.querySelector('[data-action="toggle-queue"]');
+    if (qbtn) qbtn.textContent = `QUEUE (${Player.queue.length})`;
   },
 
-  /* ---------- Search ---------- */
+  /* ---------- search ---------- */
   renderSearch(q) {
     const box = document.getElementById('search-results');
     q = q.trim().toLowerCase();
-    if (!q) { box.innerHTML = '<div class="empty" style="padding:30px">Type to search songs, artists, albums</div>'; return; }
+    if (!q) { box.innerHTML = '<div class="empty" style="margin:14px">TYPE TO SEARCH THE ARCHIVE</div>'; return; }
     const songs = App.songs.filter(s => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q) || s.album.toLowerCase().includes(q)).slice(0, 8);
-    const artists = App.artists.filter(a => a.name.toLowerCase().includes(q)).slice(0, 4);
-    const albums = App.albums.filter(a => a.name.toLowerCase().includes(q)).slice(0, 4);
+    const artists = App.artists.filter(a => a.name.toLowerCase().includes(q)).slice(0, 3);
+    const albums = App.albums.filter(a => a.name.toLowerCase().includes(q)).slice(0, 3);
+    const row = (art, t1, t2, attrs) => `
+      <div class="sr-row" ${attrs}>
+        <div class="sr-thumb" style="background-image:url('${art}')"></div>
+        <div><div class="t1">${esc(t1)}</div><div class="t2">${esc(t2)}</div></div>
+        <span class="go">LOAD ▸</span>
+      </div>`;
     let html = '';
-    if (artists.length) html += `<div class="sr-label">Artists</div>` + artists.map(a => `
-      <div class="song-row" data-action="search-artist" data-artist="${esc(a.name)}" style="cursor:default">
-        <div class="idx"></div><div class="artist-pic" style="width:42px;height:42px;background-image:url('${a.art}')"></div>
-        <div><div class="s-title">${esc(a.name)}</div><div class="s-sub">${a.songIds.length} songs</div></div>
-      </div>`).join('');
-    if (albums.length) html += `<div class="sr-label">Albums</div>` + albums.map(a => `
-      <div class="song-row" data-action="search-album" data-album="${esc(a.key)}" style="cursor:default">
-        <div class="idx"></div><div class="thumb" style="background-image:url('${a.art}')"></div>
-        <div><div class="s-title">${esc(a.name)}</div><div class="s-sub">${esc(a.artist)} · ${a.year}</div></div>
-      </div>`).join('');
-    if (songs.length) html += `<div class="sr-label">Songs</div>` + songs.map(s => this.songRow(s, 0, { number: false })).join('');
-    box.innerHTML = html || '<div class="empty" style="padding:30px">No results</div>';
+    if (artists.length) html += `<div class="sr-label">PERFORMERS</div>` + artists.map(a => row(a.art, a.name, `${a.songIds.length} songs`, `data-action="search-artist" data-artist="${esc(a.name)}"`)).join('');
+    if (albums.length) html += `<div class="sr-label">RELEASES</div>` + albums.map(a => row(a.art, a.name, `${esc(a.artist)} · ${a.year}`, `data-action="search-album" data-album="${esc(a.key)}"`)).join('');
+    if (songs.length) html += `<div class="sr-label">TRANSMISSIONS</div>` + songs.map(s => row(s.art, s.title, `${esc(s.artist)} · ${s.spec}`, `data-song="${s.id}"`)).join('');
+    box.innerHTML = html || '<div class="empty" style="margin:14px">NO RESULTS</div>';
   },
 
   /* ---------- context menu ---------- */
   songMenu(song, x, y) {
     closeMenu();
     const loved = App.loved.has(song.id);
-    const pls = App.playlists.map(p => `<button class="ctx-item" data-action="add-to-pl" data-pl="${p.id}" data-song="${song.id}">${ico('playlist')} Add to ${esc(p.name)}</button>`).join('');
+    const pls = App.playlists.map(p => `<button class="ctx-item" data-action="add-to-pl" data-pl="${p.id}" data-song="${song.id}">+ Add to ${esc(p.name)}</button>`).join('');
     const el = document.createElement('div');
     el.className = 'ctx-menu';
     el.id = 'ctx-menu';
-    el.style.left = Math.min(x, innerWidth - 210) + 'px';
+    el.style.left = Math.min(x, innerWidth - 220) + 'px';
     el.style.top = Math.min(y, innerHeight - 260) + 'px';
     el.innerHTML = `
-      <button class="ctx-item" data-action="ctx-play" data-song="${song.id}">${ico('play')} Play now</button>
-      <button class="ctx-item" data-action="ctx-next" data-song="${song.id}">${ico('skip')} Play next</button>
-      <button class="ctx-item" data-action="ctx-queue" data-song="${song.id}">${ico('queue')} Add to queue</button>
-      <button class="ctx-item" data-action="love" data-song="${song.id}">${ico('heart')} ${loved ? 'Unlove' : 'Love'}</button>
+      <button class="ctx-item" data-action="ctx-play" data-song="${song.id}">▸ Play now</button>
+      <button class="ctx-item" data-action="ctx-next" data-song="${song.id}">⏭ Play next</button>
+      <button class="ctx-item" data-action="ctx-queue" data-song="${song.id}">≡ Add to queue</button>
+      <button class="ctx-item" data-action="love" data-song="${song.id}">${loved ? '♡ Unlove' : '♥ Love'}</button>
       ${pls}
-      <button class="ctx-item" data-action="new-playlist-with" data-song="${song.id}">${ico('plus')} New playlist from song</button>`;
+      <button class="ctx-item" data-action="new-playlist-with" data-song="${song.id}">+ New reel from song</button>`;
     document.body.appendChild(el);
     document.getElementById('menu-overlay').classList.add('open');
   },
 
+  /* ---------- footer player bar ---------- */
   renderIfCurrent(song) {
     const cur = Player.current();
     if (cur && cur.id === song.id) this.updatePlayerBar();
@@ -437,50 +497,32 @@ const UI = {
 
   updatePlayerBar() {
     const cur = Player.current();
-    const art = document.getElementById('pb-art');
-    const title = document.getElementById('pb-title');
-    const artist = document.getElementById('pb-artist');
+    const $ = id => document.getElementById(id);
     if (cur) {
-      art.style.backgroundImage = `url('${cur.art}')`;
-      title.textContent = cur.title;
-      artist.textContent = `${cur.artist} · ${cur.album}`;
+      $('pb-art').style.backgroundImage = `url('${cur.art}')`;
+      $('pb-title').textContent = cur.title;
+      $('pb-artist').textContent = `${cur.artist} · ${cur.album}`;
+      $('pb-spec').textContent = cur.short;
+      $('pb-engine').textContent = Player.isPlaying() ? 'ASIO DIRECT' : 'STANDBY';
     }
-    document.getElementById('pb-play-ico').innerHTML = ico(Player.isPlaying() ? 'pause' : 'play');
-    document.getElementById('pb-play').classList.toggle('playing', Player.isPlaying());
-    document.getElementById('pb-shuffle').classList.toggle('active', Player.shuffle);
-    const rbtn = document.getElementById('pb-repeat');
-    rbtn.classList.toggle('active', Player.repeat !== 'off');
-    rbtn.innerHTML = ico(Player.repeat === 'one' ? 'repeat1' : 'repeat');
-    document.getElementById('pb-love').classList.toggle('on', cur && App.loved.has(cur.id));
-    const eq = document.getElementById('pb-eq');
-    if (eq) eq.className = `pb-eq ${Player.isPlaying() ? 'live' : 'idle'}`;
-    const vol = document.getElementById('pb-mute');
-    vol.innerHTML = ico(Player.audio && (Player.audio.muted || Player.audio.volume === 0) ? 'mute' : 'volume');
+    $('pb-play').textContent = Player.isPlaying() ? '❚❚' : '▶';
+    $('pb-shuffle').classList.toggle('active', Player.shuffle);
+    const rep = $('pb-repeat');
+    rep.classList.toggle('active', Player.repeat !== 'off');
+    rep.textContent = Player.repeat === 'off' ? 'REPEAT OFF' : Player.repeat === 'all' ? 'REPEAT ALL' : 'REPEAT 1';
+    $('pb-love').textContent = cur && App.loved.has(cur.id) ? '♥' : '♡';
+    $('pb-love').classList.toggle('loved', !!(cur && App.loved.has(cur.id)));
+    $('pb-mute').classList.toggle('muted', !!(Player.audio && Player.audio.muted));
+    $('pb-art').classList.toggle('spinning', Player.isPlaying());
   },
 
   updateTime() {
     const a = Player.audio;
     document.getElementById('pb-cur').textContent = fmtTime(a.currentTime);
-    document.getElementById('pb-dur').textContent = fmtTime(a.duration);
-    const cur = Player.current();
-    const nowRow = document.querySelector(`.song-row[data-song="${cur ? cur.id : ''}"] .idx`);
-    document.querySelectorAll('.song-row').forEach(r => {
-      const isCur = cur && r.dataset.song === cur.id;
-      r.classList.toggle('playing', isCur);
-      const idx = r.querySelector('.idx');
-      if (idx && isCur && !idx.querySelector('.q-eq')) {
-        const i = r.dataset.i;
-        idx.innerHTML = '<span class="q-eq"><i></i><i></i><i></i></span>';
-      }
-    });
+    document.getElementById('pb-dur').textContent = fmtTime(a.duration || 0);
   },
 
   reRenderCurrentView() {
     this.render();
   },
 };
-
-function closeMenu() {
-  document.getElementById('ctx-menu')?.remove();
-  document.getElementById('menu-overlay').classList.remove('open');
-}

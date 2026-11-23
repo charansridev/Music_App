@@ -1,112 +1,268 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NOTHING.MUSIC</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='black'/><circle cx='50' cy='50' r='28' fill='none' stroke='%23FF2D2D' stroke-width='6'/><circle cx='50' cy='50' r='8' fill='%23FF2D2D'/></svg>">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NOTHING (R) // AUDIO PLAYER OS-1</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/styles.css"/>
 </head>
-<body class="neon-boot">
-<div id="app">
-  <aside class="sidebar">
-    <div class="logo">
-      <span class="logo-mark">◉</span>
-      <div><div class="logo-name">NOTHING</div><div class="logo-sub">◉ MUSIC OS · V1.0</div></div>
+<body>
+
+<!-- TOP MASTER CHASSIS STATUS HEADER -->
+<header id="chassis">
+  <div class="ch-right" style="width:100%;justify-content:flex-end">
+    <div class="out-box">
+      <span class="dim">OUT:</span>
+      <span id="out-name">NOTHING EAR (2) [LHDC 5.0]</span>
+      <span class="out-tally"></span>
     </div>
-    <nav id="nav">
-      <div class="nav-label">Listen</div>
-      <a href="#/home" data-view="home"><span class="nav-ico" data-ico="home"></span><span class="nav-text">Home</span></a>
-      <a href="#/library" data-view="library"><span class="nav-ico" data-ico="library"></span><span class="nav-text">Library</span></a>
-      <a href="#/loved" data-view="loved"><span class="nav-ico" data-ico="heart"></span><span class="nav-text">Loved</span></a>
-      <a href="#/playlists" data-view="playlists"><span class="nav-ico" data-ico="playlist"></span><span class="nav-text">Playlists</span></a>
-      <a href="#/podcasts" data-view="podcasts"><span class="nav-ico" data-ico="mic"></span><span class="nav-text">Podcasts</span></a>
-      <a href="#/stats" data-view="stats"><span class="nav-ico" data-ico="chart"></span><span class="nav-text">Stats</span></a>
-      <div class="nav-label"></div>
-      <a href="#/settings" data-view="settings"><span class="nav-ico" data-ico="gear"></span><span class="nav-text">Settings</span></a>
-      <a href="#/help" data-view="help"><span class="nav-ico" data-ico="help"></span><span class="nav-text">Help</span></a>
-    </nav>
-    <div class="signal-panel">
-      <div class="signal-head mono"><span>SIGNAL</span><span id="signal-db">-- dB</span></div>
-      <canvas id="signal-canvas" height="52"></canvas>
-    </div>
-    <div class="sidebar-card" id="library-card">
-      <span class="sidebar-card-ico" data-ico="disc"></span>
-      <div class="sidebar-card-title">Local library</div>
-      <div class="sidebar-card-sub">No ads, no cloud. Just your music.</div>
-      <button class="btn btn-primary btn-sm" id="btn-pick-folder">Choose folder</button>
-    </div>
-    <div class="sidebar-user">
-      <span class="avatar" data-ico="disc"></span>
-      <div><div class="user-name" id="lib-count-label">No library yet</div><div class="user-sub" id="lib-count-sub">Choose a music folder</div></div>
+  </div>
+</header>
+
+<!-- BODY -->
+<div class="body">
+  <!-- LEFT INDUSTRIAL SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sb-top">
+      <div class="sb-search" id="sb-search" data-action="open-search">
+        <span class="sb-search-hint">SEARCH ARCHIVE (CMD+K)</span>
+        <span class="sb-search-ico">⌕</span>
+      </div>
+
+      <div class="sb-sector">
+        <div class="sb-sector-head">
+          <span>SOURCE SECTOR</span>
+          <span class="font-dot">01</span>
+        </div>
+        <nav id="nav">
+          <a href="#/deck" data-view="deck" class="active">
+            <span class="nav-name"><i class="nv-dot red"></i>Active Deck</span>
+            <span class="nav-count font-dot" id="nav-deck-status">IDLE</span>
+          </a>
+          <a href="#/library" data-view="library">
+            <span class="nav-name"><i class="nv-dot"></i>Master Library</span>
+            <span class="nav-count mono" id="nav-count-library">0</span>
+          </a>
+          <a href="#/stash" data-view="stash">
+            <span class="nav-name"><i class="nv-dot"></i>Tape Stash</span>
+            <span class="nav-count mono" id="nav-count-stash">0</span>
+          </a>
+          <a href="#/hires" data-view="hires">
+            <span class="nav-name"><i class="nv-dot amber"></i>Hi-Res FLAC &amp; DSD</span>
+            <span class="nav-count mono amber" id="nav-count-hires">0</span>
+          </a>
+          <a href="#/stats" data-view="stats">
+            <span class="nav-name"><i class="nv-dot"></i>Telemetry</span>
+            <span class="nav-count mono" id="nav-count-stats">60D</span>
+          </a>
+          <a href="#/settings" data-view="settings">
+            <span class="nav-name"><i class="nv-dot"></i>System</span>
+            <span class="nav-count mono">OS-1</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sb-module">
+        <div class="sb-sector-head">
+          <span>GLYPH SOUNDWIRE</span>
+          <span class="font-dot green sw-active" id="sw-glyph-status"><i class="ping-dot"></i>ACTIVE</span>
+        </div>
+        <div class="sb-panel">
+          <div class="sb-panel-row">
+            <div class="sb-panel-name">
+              <span class="glyph-mini"><i class="gm-ring"></i><i class="gm-core"></i></span>
+              REEL LIGHT SYNC
+            </div>
+            <button class="hw-switch on" id="sw-glyph" data-on="true" aria-label="Reel light sync"><i></i></button>
+          </div>
+          <div class="sb-panel-foot">
+            <span>STROBE RATE</span>
+            <span class="font-dot cyan">DYNAMIC 1:1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sb-module">
+        <div class="sb-sector-head"><span>PHYSICAL CHANNELS</span></div>
+        <div class="sb-channels">
+          <div class="sb-channel">
+            <span>CROSSFEED DSP</span>
+            <button class="hw-switch" id="sw-crossfeed" data-on="false" aria-label="Crossfeed DSP"><i></i></button>
+          </div>
+        </div>
+      </div>
     </div>
   </aside>
 
-  <main class="main">
-    <header class="topbar">
-      <div class="breadcrumb" id="breadcrumb"></div>
-      <button class="search-pill" id="search-open"><span data-ico="search"></span><span class="search-hint">Search songs, artists…</span><span class="kbd">⌘K</span></button>
-      <div class="topbar-actions">
-        <button class="icon-btn" id="btn-queue" title="Queue"><span data-ico="queue"></span></button>
-        <span class="avatar avatar-sm" data-ico="disc"></span>
-      </div>
-    </header>
-    <div class="view" id="view"></div>
-  </main>
+  <!-- MAIN INDUSTRIAL WORKSPACE -->
+  <main id="main"><div id="view"></div></main>
 </div>
 
-<footer class="playerbar" id="playerbar">
-  <div id="pb-line"></div>
-  <div class="pb-left">
-    <div class="pb-eq idle" id="pb-eq"><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span></div>
-    <div class="pb-art" id="pb-art"></div>
-    <div class="pb-meta">
-      <div class="pb-title" id="pb-title">Nothing playing</div>
-      <div class="pb-artist" id="pb-artist">Pick a folder to start</div>
+<!-- BOTTOM MASTER PHYSICAL HARDWARE PLAYER CHASSIS -->
+<footer id="chassis-footer">
+  <div class="pf-left">
+    <div class="pf-art" id="pb-art">
+      <div class="pf-ring"></div>
+      <div class="pf-hub"></div>
     </div>
-    <button class="icon-btn heart-btn" id="pb-love" title="Love"><span data-ico="heart"></span></button>
-  </div>
-  <div class="pb-center">
-    <div class="pb-buttons">
-      <button class="icon-btn" id="pb-shuffle" title="Shuffle"><span data-ico="shuffle"></span></button>
-      <button class="icon-btn" id="pb-prev" title="Previous"><span data-ico="prev"></span></button>
-      <button class="play-btn" id="pb-play" title="Play/Pause">
-        <svg class="play-ring" viewBox="0 0 60 60"><circle class="ring-bg" cx="30" cy="30" r="27"/><circle class="ring-fill" id="play-ring-fill" cx="30" cy="30" r="27"/></svg>
-        <span id="pb-play-ico" data-ico="play"></span>
-      </button>
-      <button class="icon-btn" id="pb-next" title="Next"><span data-ico="next"></span></button>
-      <button class="icon-btn" id="pb-repeat" title="Repeat"><span data-ico="repeat"></span></button>
-    </div>
-    <div class="pb-progress">
-      <span class="pb-time" id="pb-cur">0:00</span>
-      <canvas id="pb-wave"></canvas>
-      <span class="pb-time" id="pb-dur">0:00</span>
+    <div class="pf-info">
+      <div class="pf-title-row">
+        <span class="red-tally"></span>
+        <span class="pf-title" id="pb-title">Nothing playing</span>
+      </div>
+      <div class="pf-artist" id="pb-artist">PICK A TRACK FROM THE LOG</div>
+      <div class="pf-format font-dot">
+        <span class="amber" id="pb-spec">—</span>
+        <span class="dim">·</span>
+        <span class="green" id="pb-engine">STANDBY</span>
+      </div>
     </div>
   </div>
-  <div class="pb-right">
-    <span class="pb-bpm mono" id="pb-bpm">-- BPM</span>
-    <button class="icon-btn vol-btn" id="pb-mute" title="Mute"><span data-ico="volume"></span></button>
-    <input type="range" id="pb-vol" min="0" max="100" value="80">
+
+  <div class="pf-center">
+    <div class="pf-transport">
+      <button class="pf-toggle" id="pb-shuffle">SHUFFLE</button>
+      <button class="milled-button pf-sm" id="pb-prev" title="Previous">⏮</button>
+      <button class="pf-play hw-press" id="pb-play" title="Play / Pause">▶</button>
+      <button class="milled-button pf-sm" id="pb-next" title="Next">⏭</button>
+      <button class="pf-toggle" id="pb-repeat">REPEAT OFF</button>
+    </div>
+    <div class="pf-progress">
+      <span class="font-dot" id="pb-cur">00:00</span>
+      <div class="led-strip" id="led-strip"></div>
+      <span class="font-dot" id="pb-dur">00:00</span>
+    </div>
+  </div>
+
+  <div class="pf-right">
+    <div class="chan-toggle" id="chan-toggle">
+      <button id="btn-stereo" class="active"><i></i>STEREO</button>
+      <button id="btn-mono">MONO</button>
+    </div>
+    <div class="pf-att">
+      <span class="dim">ATT:</span>
+      <input type="range" id="pb-vol" min="0" max="100" value="80"/>
+      <span class="font-dot" id="pb-att">-1.9dB</span>
+    </div>
+    <button class="pf-mini hw-press" id="pb-love" title="Love">♡</button>
+    <button class="pf-mini hw-press" id="pb-mute" title="Mute"><i class="mute-dot"></i></button>
+    <button class="pf-mini hw-press" id="btn-queue" title="Queue">≡</button>
   </div>
 </footer>
 
-<div class="queue-panel" id="queue-panel">
-  <div class="queue-head"><strong>Queue</strong><button class="icon-btn" id="queue-close"><span data-ico="x"></span></button></div>
-  <div class="queue-list" id="queue-list"></div>
+<!-- OVERLAYS -->
+<div id="menu-overlay"></div>
+
+<div id="queue-panel">
+  <div class="q-head">
+    <span class="mono">TRANSMISSION QUEUE · <b id="q-count">0</b></span>
+    <button id="queue-close" title="Close">✕</button>
+  </div>
+  <div id="queue-list"></div>
 </div>
 
-<div class="overlay" id="search-overlay">
-  <div class="search-modal">
-    <div class="search-modal-input"><span data-ico="search"></span><input id="search-input" type="text" placeholder="Search songs, artists, albums…" autocomplete="off"></div>
-    <div class="search-results" id="search-results"></div>
+<div id="search-overlay">
+  <div class="search-box hw-card">
+    <div class="search-head mono">ARCHIVE QUERY // DECK-01<button id="search-close">✕</button></div>
+    <input id="search-input" type="text" placeholder="SEARCH COMPOSITION / PERFORMER / RELEASE" autocomplete="off"/>
+    <div id="search-results"></div>
   </div>
 </div>
 
-<div class="overlay" id="menu-overlay"></div>
+<!-- FULLSCREEN GLYPH IMMERSION -->
+<div id="immersion">
+  <div class="imm-top">
+    <div class="imm-brand">
+      <span class="imm-mark"></span>
+      <span class="mono bold">NOTHING (R)</span>
+      <span class="mono dim">// FULLSCREEN IMMERSION // DECK-01</span>
+    </div>
+    <button class="imm-exit hw-press" id="imm-exit">
+      <span>ESC // EXIT FULLSCREEN</span>
+    </button>
+  </div>
+  <div class="imm-tel imm-tl mono">
+    <span class="tel-dot"></span> AUDIO CORE: DSD-ASIO
+    <span>CH: 02 STEREO</span>
+    <span>BUFFER: 64 SMPL</span>
+    <span class="font-dot green">JITTER &lt; 0.01ps</span>
+  </div>
+  <div class="imm-tel imm-tr mono">
+    <span>OUTPUT: NOTHING EAR (2) [LHDC 5.0]</span>
+    <span class="font-dot">MOD: NO-AUD-FS</span>
+  </div>
+  <div class="imm-glows">
+    <div class="glow glow-red" id="glow-red"></div>
+    <div class="glow glow-cyan" id="glow-cyan"></div>
+    <div class="glow glow-amber" id="glow-amber"></div>
+  </div>
+  <div class="imm-glyph">
+    <svg viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="400" cy="300" r="260" class="g-track" stroke-dasharray="12 8 4 8" stroke-width="1.5"/>
+      <circle cx="400" cy="300" r="225" id="glyph-ring-outer" stroke-dasharray="48 16 12 16" stroke-width="2"/>
+      <circle cx="400" cy="300" r="185" id="glyph-ring-mid" stroke-dasharray="6 10" stroke-width="3"/>
+      <circle cx="400" cy="300" r="140" class="g-ticks" stroke-dasharray="2 6" stroke-width="1"/>
+      <g class="g-dots" fill="currentColor">
+        <circle cx="90" cy="90" r="2.5"/><circle cx="106" cy="90" r="2.5"/><circle cx="122" cy="90" r="2.5"/><circle cx="138" cy="90" r="2.5"/>
+        <circle cx="90" cy="106" r="2.5"/><circle class="g-d1" cx="106" cy="106" r="2.5"/><circle cx="122" cy="106" r="2.5"/><circle cx="138" cy="106" r="2.5"/>
+        <circle cx="90" cy="122" r="2.5"/><circle cx="106" cy="122" r="2.5"/><circle class="g-d2" cx="122" cy="122" r="2.5"/><circle cx="138" cy="122" r="2.5"/>
+      </g>
+      <g class="g-dots" fill="currentColor">
+        <circle cx="662" cy="478" r="2.5"/><circle class="g-d1" cx="678" cy="478" r="2.5"/><circle cx="694" cy="478" r="2.5"/><circle cx="710" cy="478" r="2.5"/>
+        <circle cx="662" cy="494" r="2.5"/><circle cx="678" cy="494" r="2.5"/><circle class="g-d1" cx="694" cy="494" r="2.5"/><circle cx="710" cy="494" r="2.5"/>
+        <circle cx="662" cy="510" r="2.5"/><circle cx="678" cy="510" r="2.5"/><circle cx="694" cy="510" r="2.5"/><circle cx="710" cy="510" r="2.5"/>
+      </g>
+      <path class="g-arc" d="M 140 300 A 260 260 0 0 1 210 120" stroke-linecap="round" stroke-width="4"/>
+      <path class="g-arc a2" d="M 660 300 A 260 260 0 0 1 590 480" stroke-linecap="round" stroke-width="4"/>
+      <path class="g-arc a3" d="M 270 70 A 260 260 0 0 1 360 45" stroke-linecap="round" stroke-width="3"/>
+      <path class="g-arc a4" d="M 440 555 A 260 260 0 0 1 530 530" stroke-linecap="round" stroke-width="3"/>
+    </svg>
+  </div>
+  <div class="imm-card hw-card" id="imm-card">
+    <div class="imm-card-top">
+      <div class="imm-badge">
+        <span class="ping-dot" id="imm-dot"></span>
+        <span class="mono">GLYPH MATRIX // 1:1 AUDIO REACTIVE</span>
+      </div>
+      <span class="font-dot cyan" id="imm-spec">FLAC 24-BIT / 96KHZ</span>
+    </div>
+    <div class="imm-now">
+      <div class="imm-art" id="imm-art"></div>
+      <div class="imm-meta">
+        <span class="mono red" id="imm-track-label">NOW PLAYING // STANDBY</span>
+        <h2 id="imm-title">—</h2>
+        <p id="imm-artist">—</p>
+        <div class="imm-telemetry mono" id="imm-telemetry">
+          <span id="imm-lufs">LUFS -14.2</span><span>·</span><span id="imm-dr">DR 11</span><span>·</span><span>ASIO DIRECT</span>
+        </div>
+      </div>
+    </div>
+    <div class="imm-controls">
+      <div class="imm-progress">
+        <span class="mono" id="imm-cur">00:00</span>
+        <div class="imm-track" id="imm-track"><div class="imm-fill" id="imm-fill"></div></div>
+        <span class="mono" id="imm-dur">00:00</span>
+      </div>
+      <div class="imm-transport">
+        <div class="imm-left">
+          <button class="imm-btn" id="imm-shuffle" title="Shuffle">⇄</button>
+          <button class="imm-btn" id="imm-repeat" title="Repeat">↻</button>
+        </div>
+        <div class="imm-mid">
+          <button class="imm-skip hw-press" id="imm-prev" title="Previous">⏮</button>
+          <button class="imm-play hw-press" id="imm-play" title="Play / Pause">▶</button>
+          <button class="imm-skip hw-press" id="imm-next" title="Next">⏭</button>
+        </div>
+        <button class="imm-mode hw-press" id="imm-mode">SYNC: 1:1</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
-<div id="drop-hint">Drop your music folder here</div>
 
 <script src="js/util.js"></script>
 <script src="js/demo-data.js"></script>
