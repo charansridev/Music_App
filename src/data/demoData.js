@@ -1,26 +1,17 @@
-// Demo dataset — same song model the real folder scanner will produce later.
+const audioSources = new WeakMap();
 
-const GENRE_COLORS = {
-  'Pop': '#FF2D2D',
-  'Hip hop': '#BF5FFF',
-  'Rock': '#FF2D2D',
-  'Jazz & soul': '#FFB800',
-  'Electronic': '#00F5FF',
-  'Folk': '#39FF14',
-};
-
-function art(c, motif) {
+function art(color, motif) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320">
   <defs>
     <filter id="b" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>
-    <pattern id="d" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="${c}22"/></pattern>
+    <pattern id="d" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="${color}22"/></pattern>
   </defs>
   <rect width="320" height="320" fill="#050505"/>
   <rect width="320" height="320" fill="url(#d)"/>
   <g filter="url(#b)" opacity=".55">${motif}</g>
-  <g fill="none" stroke="${c}" stroke-width="5">${motif}</g>
+  <g fill="none" stroke="${color}" stroke-width="5">${motif}</g>
   </svg>`;
-  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 const ART = {
@@ -48,97 +39,140 @@ const DEMO_SONGS = [
   { id: 's13', title: 'Slow Mornings', artist: 'Koff Mamrah', album: 'Golden Hour Club', albumArtist: 'Koff Mamrah', year: 2024, genre: 'Jazz & soul', track: 2, duration: 233, art: ART.golden },
 ];
 
-const DEMO_LOVED = new Set(['s1', 's4', 's8', 's10', 's12', 's3']);
+export const DEMO_LOVED = ['s1', 's4', 's8', 's10', 's12', 's3'];
 
-const DEMO_PLAYLISTS = [
+export const DEMO_PLAYLISTS = [
   { id: 'p1', name: 'Late night lo-fi', songIds: ['s8', 's9', 's1', 's13'] },
   { id: 'p2', name: 'Morning brew', songIds: ['s10', 's2', 's11', 's6', 's3'] },
 ];
 
-// Seeded play history: last 60 days, with a live streak
-function seedHistory() {
-  const out = [];
-  const rand = mulberry(42);
-  const now = Date.now();
-  const DAY = 86400000;
-  for (let d = 59; d >= 0; d--) {
-    const dayStart = new Date(now - d * DAY);
-    dayStart.setHours(0, 0, 0, 0);
-    let plays = 0;
-    if (d < 9) plays = 2 + Math.floor(rand() * 4);        // current streak
-    else plays = rand() < 0.72 ? 1 + Math.floor(rand() * 5) : 0;
-    for (let p = 0; p < plays; p++) {
-      const song = DEMO_SONGS[Math.floor(rand() * DEMO_SONGS.length)];
-      const hour = [7, 8, 9, 12, 13, 17, 18, 20, 21, 22, 23][Math.floor(rand() * 11)];
-      const ts = dayStart.getTime() + hour * 3600000 + Math.floor(rand() * 3500000);
-      const ms = 60000 + rand() * (song.duration * 1000 - 60000);
-      out.push({ songId: song.id, ts, ms });
-    }
-  }
-  // a few plays today
-  out.push({ songId: 's1', ts: now - 20 * 60000, ms: 142000 });
-  return out;
-}
-function mulberry(a) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+function mulberry(seed) {
+  return function random() {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let value = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
 }
 
+export function seedHistory() {
+  const history = [];
+  const random = mulberry(42);
+  const now = Date.now();
+  const day = 86400000;
+
+  for (let offset = 59; offset >= 0; offset--) {
+    const dayStart = new Date(now - offset * day);
+    dayStart.setHours(0, 0, 0, 0);
+    let plays = 0;
+    if (offset < 9) plays = 2 + Math.floor(random() * 4);
+    else plays = random() < 0.72 ? 1 + Math.floor(random() * 5) : 0;
+
+    for (let play = 0; play < plays; play++) {
+      const song = DEMO_SONGS[Math.floor(random() * DEMO_SONGS.length)];
+      const hour = [7, 8, 9, 12, 13, 17, 18, 20, 21, 22, 23][Math.floor(random() * 11)];
+      const ts = dayStart.getTime() + hour * 3600000 + Math.floor(random() * 3500000);
+      const ms = 60000 + random() * (song.duration * 1000 - 60000);
+      history.push({ songId: song.id, ts, ms });
+    }
+  }
+
+  history.push({ songId: 's1', ts: now - 20 * 60000, ms: 142000 });
+  return history;
+}
+
 function songTech(id) {
-  let h = 7;
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  let hash = 7;
+  for (const character of id) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   const specs = [
     { spec: '44.1kHz / 16b', short: 'FLAC 16/44.1', quant: '16-BIT FLAC', hz: '44.100 kHz' },
     { spec: '48kHz / 24b', short: 'FLAC 24/48', quant: '24-BIT FLAC', hz: '48.000 kHz' },
     { spec: '96kHz / 24b', short: 'FLAC 24/96', quant: '24-BIT FLAC', hz: '96.000 kHz' },
     { spec: 'DSD 2.8MHz', short: 'DSD 2.8', quant: 'DSD 1-BIT', hz: '2.8224 MHz' },
   ];
-  const s = specs[h % specs.length];
-  return { ...s, dr: 'DR' + (11 + (h >> 2) % 6), hires: h % specs.length >= 2 };
+  const selected = specs[hash % specs.length];
+  return { ...selected, dr: `DR${11 + ((hash >> 2) % 6)}`, hires: hash % specs.length >= 2 };
 }
 
-function buildLibrary() {
-  const songs = DEMO_SONGS.map(s => ({ ...s, src: null, ...songTech(s.id) }));
+export function buildLibrary() {
+  const songs = DEMO_SONGS.map((song) => ({ ...song, ...songTech(song.id) }));
   const albumMap = new Map();
   const artistMap = new Map();
-  songs.forEach(s => {
-    const ak = s.album + '|' + s.albumArtist;
-    if (!albumMap.has(ak)) albumMap.set(ak, { key: ak, name: s.album, artist: s.albumArtist, year: s.year, genre: s.genre, art: s.art, songIds: [] });
-    albumMap.get(ak).songIds.push(s.id);
-    if (!artistMap.has(s.artist)) artistMap.set(s.artist, { name: s.artist, songIds: [], art: s.art });
-    artistMap.get(s.artist).songIds.push(s.id);
+
+  songs.forEach((song) => {
+    const albumKey = `${song.album}|${song.albumArtist}`;
+    if (!albumMap.has(albumKey)) {
+      albumMap.set(albumKey, {
+        key: albumKey,
+        name: song.album,
+        artist: song.albumArtist,
+        year: song.year,
+        genre: song.genre,
+        art: song.art,
+        songIds: [],
+      });
+    }
+    albumMap.get(albumKey).songIds.push(song.id);
+
+    if (!artistMap.has(song.artist)) {
+      artistMap.set(song.artist, { name: song.artist, songIds: [], art: song.art });
+    }
+    artistMap.get(song.artist).songIds.push(song.id);
   });
-  const genres = [...new Set(songs.map(s => s.genre))];
-  return { songs, albums: [...albumMap.values()], artists: [...artistMap.values()], genres };
+
+  return {
+    songs,
+    albums: [...albumMap.values()],
+    artists: [...artistMap.values()],
+    genres: [...new Set(songs.map((song) => song.genre))],
+  };
 }
 
-// Short generated tone-track so the demo player actually plays something.
-function demoAudioSrc(song) {
+export function demoAudioSrc(song) {
   if (song.src) return song.src;
-  const rate = 8000, n = Math.floor(rate * song.duration);
-  const seed = [...song.id].reduce((a, c) => a + c.charCodeAt(0), 0);
+  if (audioSources.has(song)) return audioSources.get(song);
+
+  const rate = 8000;
+  const sampleCount = Math.floor(rate * song.duration);
+  const seed = [...song.id].reduce((sum, character) => sum + character.charCodeAt(0), 0);
   const base = 180 + (seed % 140);
   const scale = [0, 3, 5, 7, 10];
-  const buf = new ArrayBuffer(44 + n);
-  const dv = new DataView(buf);
-  const wstr = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
-  wstr(0, 'RIFF'); dv.setUint32(4, 36 + n, true); wstr(8, 'WAVE');
-  wstr(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
-  dv.setUint32(24, rate, true); dv.setUint32(28, rate, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true);
-  wstr(36, 'data'); dv.setUint32(40, n, true);
-  for (let i = 0; i < n; i++) {
-    const t = i / rate;
-    const bar = Math.floor(t / 2) % 8;
-    const f = base * Math.pow(2, scale[(bar + seed) % scale.length] / 12);
-    const env = Math.min(1, t * 2) * (t > song.duration - 2 ? Math.max(0, (song.duration - t) / 2) : 1);
-    const beat = t % 0.5 < 0.05 ? 0.6 : 1;
-    const v = (Math.sin(2 * Math.PI * f * t) * 0.5 + Math.sin(2 * Math.PI * f * 2 * t) * 0.2 + Math.sin(2 * Math.PI * f / 2 * t) * 0.25) * env * beat * 38;
-    dv.setUint8(44 + i, Math.max(0, Math.min(255, Math.round(128 + v))));
+  const buffer = new ArrayBuffer(44 + sampleCount);
+  const view = new DataView(buffer);
+  const writeString = (offset, value) => {
+    for (let index = 0; index < value.length; index++) view.setUint8(offset + index, value.charCodeAt(index));
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + sampleCount, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  writeString(36, 'data');
+  view.setUint32(40, sampleCount, true);
+
+  for (let index = 0; index < sampleCount; index++) {
+    const time = index / rate;
+    const bar = Math.floor(time / 2) % 8;
+    const frequency = base * Math.pow(2, scale[(bar + seed) % scale.length] / 12);
+    const envelope = Math.min(1, time * 2) * (time > song.duration - 2 ? Math.max(0, (song.duration - time) / 2) : 1);
+    const beat = time % 0.5 < 0.05 ? 0.6 : 1;
+    const value = (
+      Math.sin(2 * Math.PI * frequency * time) * 0.5
+      + Math.sin(2 * Math.PI * frequency * 2 * time) * 0.2
+      + Math.sin(2 * Math.PI * frequency / 2 * time) * 0.25
+    ) * envelope * beat * 38;
+    view.setUint8(44 + index, Math.max(0, Math.min(255, Math.round(128 + value))));
   }
-  song.src = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
-  return song.src;
+
+  const source = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+  audioSources.set(song, source);
+  return source;
 }
