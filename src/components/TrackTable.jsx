@@ -15,7 +15,7 @@ export function TrackTable({ songs, currentSong, onPlay, onContextMenu, options 
             <th scope="col">COMPOSITION / PERFORMER</th>
             <th scope="col">RELEASE</th>
             <th scope="col">SPEC</th>
-            <th scope="col">DR</th>
+            <th scope="col">STREAM</th>
             <th scope="col" style={{ textAlign: 'right' }}>DUR</th>
           </tr>
         </thead>

@@ -5,17 +5,19 @@ function elementById(id) {
   return document.getElementById(id);
 }
 
-export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immersionOpen }) {
+export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immersionOpen, sinkId = '' }) {
   const audioRef = useRef(audio);
   const graphRef = useRef(null);
   const settingsRef = useRef({ glyphSync, mono, crossfeed });
   const playingRef = useRef(isPlaying);
   const immersionRef = useRef(immersionOpen);
+  const sinkIdRef = useRef(sinkId);
 
   audioRef.current = audio;
   settingsRef.current = { glyphSync, mono, crossfeed };
   playingRef.current = isPlaying;
   immersionRef.current = immersionOpen;
+  sinkIdRef.current = sinkId;
 
   const ensureGraph = useCallback(() => {
     if (graphRef.current) return true;
@@ -25,6 +27,9 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immer
     try {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const context = new AudioContextClass();
+      if (sinkIdRef.current && typeof context.setSinkId === 'function') {
+        context.setSinkId(sinkIdRef.current).catch(() => {});
+      }
       const source = context.createMediaElementSource(element);
       const splitter = context.createChannelSplitter(2);
       const merger = context.createChannelMerger(2);
@@ -104,6 +109,12 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immer
   }, [crossfeed]);
 
   useEffect(() => {
+    const context = graphRef.current?.context;
+    if (!context || typeof context.setSinkId !== 'function') return;
+    context.setSinkId(sinkId || '').catch(() => {});
+  }, [sinkId]);
+
+  useEffect(() => {
     if (!audio) return undefined;
     let frameId;
 
@@ -163,22 +174,29 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immer
       if (immersionDuration) immersionDuration.textContent = formatTime(total);
     };
 
+    const updateGlyphSegments = (selector, reactive, bass, mid) => {
+      const segments = document.querySelectorAll(selector);
+      if (!segments.length) return;
+      const count = reactive ? 3 + Math.round(bass * 4) : 0;
+      const offset = Math.floor(performance.now() / (380 - Math.min(220, mid * 220))) % 8;
+      segments.forEach((segment, index) => {
+        segment.classList.toggle('lit', reactive && (index - offset + 8) % 8 < count);
+      });
+    };
+
     const updateDeck = (playing, reactive, bass, mid) => {
       const core = elementById('platter-core');
       if (core) core.style.animationPlayState = playing ? 'running' : 'paused';
-      const segments = document.querySelectorAll('.gl-seg');
-      if (segments.length) {
-        const count = reactive ? 3 + Math.round(bass * 4) : 0;
-        const offset = Math.floor(performance.now() / (380 - Math.min(220, mid * 220))) % 8;
-        segments.forEach((segment, index) => {
-          segment.classList.toggle('lit', reactive && (index - offset + 8) % 8 < count);
-        });
-      }
+      updateGlyphSegments('.gl-seg', reactive, bass, mid);
       const engine = elementById('pb-engine');
-      if (engine) engine.textContent = playing ? 'ASIO DIRECT' : 'STANDBY';
+      if (engine) engine.textContent = playing ? 'PLAYING' : 'STANDBY';
     };
 
-    const updateImmersion = (reactive, bass, mid, treble) => {
+    const updateImmersion = (playing, reactive, bass, mid) => {
+      const platterCore = elementById('imm-platter-core');
+      if (platterCore) platterCore.style.animationPlayState = playing ? 'running' : 'paused';
+      updateGlyphSegments('.imm-gl-seg', reactive, bass, mid);
+
       const middleRing = elementById('glyph-ring-mid');
       const outerRing = elementById('glyph-ring-outer');
       if (middleRing) {
@@ -191,16 +209,12 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immer
       }
       const redGlow = elementById('glow-red');
       const cyanGlow = elementById('glow-cyan');
-      const amberGlow = elementById('glow-amber');
-      if (redGlow) redGlow.style.transform = `scale(${1 + bass * 0.5})`;
-      if (cyanGlow) cyanGlow.style.transform = `translate(-128px,-80px) scale(${1 + mid * 0.6})`;
-      if (amberGlow) amberGlow.style.transform = `translate(140px,96px) scale(${1 + treble * 0.5})`;
+      if (redGlow) redGlow.style.transform = `scale(${1 + bass * 0.45})`;
+      if (cyanGlow) cyanGlow.style.transform = `translate(-128px,-80px) scale(${1 + mid * 0.5})`;
       const dot = elementById('imm-dot');
-      if (dot) dot.style.background = playingRef.current && reactive ? 'var(--cyan)' : 'var(--ink-4)';
-      const loudness = elementById('imm-lufs');
-      if (loudness) {
-        const level = reactive ? band(2, 40) : 0;
-        loudness.textContent = level > 0.001 ? `LUFS ${(20 * Math.log10(level)).toFixed(1)}` : 'LUFS -14.2';
+      if (dot) {
+        dot.style.background = playing ? 'var(--red)' : 'var(--ink-4)';
+        dot.style.boxShadow = playing ? '0 0 8px rgba(215, 25, 32, .85)' : 'none';
       }
     };
 
@@ -213,11 +227,10 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immer
 
       const bass = reactive ? band(1, 8) : 0;
       const mid = reactive ? band(8, 32) : 0;
-      const treble = reactive ? band(32, 96) : 0;
       updateSpectrum(reactive);
       updateProgress();
       updateDeck(playingRef.current, reactive, bass, mid);
-      if (immersionRef.current) updateImmersion(reactive, bass, mid, treble);
+      if (immersionRef.current) updateImmersion(playingRef.current, reactive, bass, mid);
       frameId = requestAnimationFrame(tick);
     };
 

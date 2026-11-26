@@ -1,22 +1,69 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChassisHeader, PlayerBar, Sidebar } from './components/Shell.jsx';
-import { BootScreen, ContextMenu, ImmersionOverlay, QueuePanel, SearchOverlay, Toasts } from './components/Overlays.jsx';
-import { buildLibrary, DEMO_LOVED, DEMO_PLAYLISTS, seedHistory } from './data/demoData.js';
+import { AddSongsModal, BootScreen, ContextMenu, ImmersionOverlay, QueuePanel, ReelModal, SearchOverlay, Toasts } from './components/Overlays.jsx';
+import { buildDemoSongs, DEMO_LOVED, DEMO_PLAYLISTS, revokeDemoAudioUrls, seedDemoHistory } from './lib/demoLibrary.js';
+import {
+  clearSavedFolderHandle,
+  indexLibrary,
+  loadSavedFolderHandle,
+  pickDirectoryHandle,
+  revokeAllObjectUrls,
+  saveFolderHandle,
+  scanDirectoryHandle,
+  scanFileList,
+  supportsDirectoryPicker,
+  verifyHandlePermission,
+} from './lib/localLibrary.js';
 import { useAudioFX } from './hooks/useAudioFX.js';
+import { useAudioOutput } from './hooks/useAudioOutput.js';
 import { useHashRoute } from './hooks/useHashRoute.js';
 import { usePlayer } from './hooks/usePlayer.js';
 import { DeckView, HelpView, HiresView, LibraryView, PlaylistView, SettingsView, StashView, StatsView } from './views/Views.jsx';
 
+const STORAGE_KEYS = {
+  loved: 'nothing-audio:loved',
+  playlists: 'nothing-audio:playlists',
+  history: 'nothing-audio:history',
+  goalMin: 'nothing-audio:goalMin',
+};
+
+function readStorage(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota or private-mode errors.
+  }
+}
+
 export default function App() {
-  const library = useMemo(() => buildLibrary(), []);
-  const { songs, albums, artists, genres } = library;
+  const [songs, setSongs] = useState([]);
+  const [folderName, setFolderName] = useState('');
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(null);
+  const [savedHandle, setSavedHandle] = useState(null);
+  const [reelModal, setReelModal] = useState(null);
+  const [addSongsPlaylistId, setAddSongsPlaylistId] = useState(null);
+  const activeHandleRef = useRef(null);
+  const fallbackInputRef = useRef(null);
+
+  const library = useMemo(() => indexLibrary(songs), [songs]);
+  const { albums, artists, genres } = library;
   const route = useHashRoute();
-  const [loved, setLoved] = useState(() => new Set(DEMO_LOVED));
-  const [playlists, setPlaylists] = useState(() => DEMO_PLAYLISTS.map((playlist) => ({ ...playlist, songIds: [...playlist.songIds] })));
-  const [history, setHistory] = useState(seedHistory);
-  const [goalMin, setGoalMin] = useState(30);
+  const [loved, setLoved] = useState(() => new Set(readStorage(STORAGE_KEYS.loved, [])));
+  const [playlists, setPlaylists] = useState(() => readStorage(STORAGE_KEYS.playlists, []));
+  const [history, setHistory] = useState(() => readStorage(STORAGE_KEYS.history, []));
+  const [goalMin, setGoalMin] = useState(() => readStorage(STORAGE_KEYS.goalMin, 30));
   const [switches, setSwitches] = useState({ glyphSync: true, crossfeed: false, mono: false });
-  const [logFilter, setLogFilter] = useState('all');
   const [libTab, setLibTab] = useState('songs');
   const [libGenre, setLibGenre] = useState('All');
   const [libSort, setLibSort] = useState('newest');
@@ -46,6 +93,23 @@ export default function App() {
     toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
   }, []);
 
+  useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.loved, [...loved]); }, [isDemoMode, loved]);
+  useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.playlists, playlists); }, [isDemoMode, playlists]);
+  useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.history, history); }, [isDemoMode, history]);
+  useEffect(() => { writeStorage(STORAGE_KEYS.goalMin, goalMin); }, [goalMin]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadSavedFolderHandle().then((handle) => {
+      if (!cancelled && handle) setSavedHandle(handle);
+    });
+    return () => {
+      cancelled = true;
+      revokeAllObjectUrls();
+      revokeDemoAudioUrls();
+    };
+  }, []);
+
   const recordPlay = useCallback((song) => {
     const id = `play-${Date.now()}-${++playIdRef.current}`;
     setHistory((current) => [...current, { id, songId: song.id, ts: Date.now(), ms: 0 }]);
@@ -59,6 +123,7 @@ export default function App() {
   }, []);
 
   const player = usePlayer({ songs, onTrackStart: recordPlay, onListen: recordListen });
+  const output = useAudioOutput({ audio: player.audio, onToast: toast });
   useAudioFX({
     audio: player.audio,
     isPlaying: player.isPlaying,
@@ -66,6 +131,7 @@ export default function App() {
     mono: switches.mono,
     crossfeed: switches.crossfeed,
     immersionOpen,
+    sinkId: output.selectedId,
   });
 
   const playSong = useCallback((song) => {
@@ -137,38 +203,63 @@ export default function App() {
   }, []);
 
   const newPlaylist = useCallback(() => {
-    const name = window.prompt('Reel name');
-    if (!name?.trim()) return;
-    const playlist = { id: `p${Date.now()}`, name: name.trim(), songIds: [] };
-    setPlaylists((current) => [...current, playlist]);
-    toast(`REEL "${playlist.name.toUpperCase()}" CREATED`);
-  }, [toast]);
+    setReelModal({ mode: 'create' });
+  }, []);
 
   const newPlaylistWith = useCallback((song) => {
-    const name = window.prompt('Reel name');
-    if (!name?.trim()) return;
-    const playlist = { id: `p${Date.now()}`, name: name.trim(), songIds: song ? [song.id] : [] };
-    setPlaylists((current) => [...current, playlist]);
-    toast(`REEL "${playlist.name.toUpperCase()}" CREATED`);
-  }, [toast]);
+    setReelModal({ mode: 'create', song });
+  }, []);
 
   const renamePlaylist = useCallback((playlist) => {
-    const name = window.prompt('New name', playlist.name);
-    if (!name?.trim()) return;
-    setPlaylists((current) => current.map((item) => item.id === playlist.id ? { ...item, name: name.trim() } : item));
+    setReelModal({ mode: 'rename', playlist });
   }, []);
+
+  const handleReelModalSubmit = useCallback((trimmedName) => {
+    if (!reelModal) return;
+    if (reelModal.mode === 'rename' && reelModal.playlist) {
+      setPlaylists((current) => current.map((item) => (
+        item.id === reelModal.playlist.id ? { ...item, name: trimmedName } : item
+      )));
+      toast(`REEL RENAMED TO "${trimmedName.toUpperCase()}"`);
+      setReelModal(null);
+      return;
+    }
+
+    const playlist = {
+      id: `p${Date.now()}`,
+      name: trimmedName,
+      songIds: reelModal.song ? [reelModal.song.id] : [],
+    };
+    setPlaylists((current) => [...current, playlist]);
+    toast(`REEL "${playlist.name.toUpperCase()}" CREATED`);
+    const shouldOpen = !reelModal.song;
+    setReelModal(null);
+    if (shouldOpen) window.location.hash = `#/playlist/${playlist.id}`;
+  }, [reelModal, toast]);
 
   const deletePlaylist = useCallback((playlist) => {
     setPlaylists((current) => current.filter((item) => item.id !== playlist.id));
+    if (addSongsPlaylistId === playlist.id) setAddSongsPlaylistId(null);
     if (route.startsWith('playlist/')) window.location.hash = '#/stash';
     toast('REEL ERASED');
-  }, [route, toast]);
+  }, [addSongsPlaylistId, route, toast]);
 
   const addToPlaylist = useCallback((playlist, song) => {
     if (playlist.songIds.includes(song.id)) return;
     setPlaylists((current) => current.map((item) => item.id === playlist.id ? { ...item, songIds: [...item.songIds, song.id] } : item));
     toast(`ADDED TO ${playlist.name.toUpperCase()}`);
   }, [toast]);
+
+  const toggleSongInPlaylist = useCallback((playlistId, song) => {
+    setPlaylists((current) => current.map((item) => {
+      if (item.id !== playlistId) return item;
+      const exists = item.songIds.includes(song.id);
+      return {
+        ...item,
+        songIds: exists ? item.songIds.filter((id) => id !== song.id) : [...item.songIds, song.id],
+      };
+    }));
+  }, []);
 
   const openPlaylist = useCallback((id) => {
     window.location.hash = `#/playlist/${id}`;
@@ -178,6 +269,135 @@ export default function App() {
     setHistory([]);
     toast('PLAY HISTORY ERASED');
   }, [toast]);
+
+  const exitDemoState = useCallback(() => {
+    if (!isDemoMode) return;
+    setIsDemoMode(false);
+    setLoved(new Set(readStorage(STORAGE_KEYS.loved, [])));
+    setPlaylists(readStorage(STORAGE_KEYS.playlists, []));
+    setHistory(readStorage(STORAGE_KEYS.history, []));
+  }, [isDemoMode]);
+
+  const startDemoMode = useCallback(() => {
+    if (scanning) return;
+    player.clearQueue();
+    revokeAllObjectUrls();
+    revokeDemoAudioUrls();
+    activeHandleRef.current = null;
+    setIsDemoMode(true);
+    setFolderName('DEMO MODE');
+    setSongs(buildDemoSongs());
+    setLibGenre('All');
+    setLoved(new Set(DEMO_LOVED));
+    setPlaylists(DEMO_PLAYLISTS.map((playlist) => ({ ...playlist, songIds: [...playlist.songIds] })));
+    setHistory(seedDemoHistory());
+    toast('DEMO MODE ACTIVE · 13 SAMPLE TRACKS');
+  }, [player.clearQueue, scanning, toast]);
+
+  const mountFromHandle = useCallback(async (handle) => {
+    setScanning(true);
+    setScanProgress({ done: 0, total: 0 });
+    try {
+      const granted = await verifyHandlePermission(handle);
+      if (!granted) {
+        toast('FOLDER PERMISSION DENIED');
+        return;
+      }
+      player.clearQueue();
+      revokeAllObjectUrls();
+      revokeDemoAudioUrls();
+      const scannedSongs = await scanDirectoryHandle(handle, setScanProgress);
+      exitDemoState();
+      activeHandleRef.current = handle;
+      setSavedHandle(handle);
+      await saveFolderHandle(handle);
+      setSongs(scannedSongs);
+      setFolderName(handle.name);
+      setLibGenre('All');
+      toast(
+        scannedSongs.length
+          ? `MOUNTED "${handle.name.toUpperCase()}" · ${scannedSongs.length} TRACKS`
+          : `NO AUDIO FILES IN "${handle.name.toUpperCase()}"`,
+      );
+    } catch (error) {
+      if (error?.name !== 'AbortError') toast('FAILED TO READ LOCAL FOLDER');
+    } finally {
+      setScanning(false);
+      setScanProgress(null);
+    }
+  }, [exitDemoState, player.clearQueue, toast]);
+
+  const pickFolder = useCallback(async () => {
+    if (scanning) return;
+    if (supportsDirectoryPicker()) {
+      try {
+        const handle = await pickDirectoryHandle();
+        await mountFromHandle(handle);
+      } catch (error) {
+        if (error?.name !== 'AbortError') toast('COULD NOT OPEN FOLDER PICKER');
+      }
+      return;
+    }
+    fallbackInputRef.current?.click();
+  }, [mountFromHandle, scanning, toast]);
+
+  const handleFallbackFiles = useCallback(async (event) => {
+    const fileList = event.target.files;
+    if (!fileList?.length) return;
+    setScanning(true);
+    setScanProgress({ done: 0, total: fileList.length });
+    try {
+      player.clearQueue();
+      revokeAllObjectUrls();
+      revokeDemoAudioUrls();
+      const { folderName: nextFolder, songs: scannedSongs } = await scanFileList(fileList, setScanProgress);
+      exitDemoState();
+      activeHandleRef.current = null;
+      setSongs(scannedSongs);
+      setFolderName(nextFolder);
+      setLibGenre('All');
+      toast(
+        scannedSongs.length
+          ? `MOUNTED "${nextFolder.toUpperCase()}" · ${scannedSongs.length} TRACKS`
+          : 'NO AUDIO FILES FOUND',
+      );
+    } catch {
+      toast('FAILED TO SCAN LOCAL FILES');
+    } finally {
+      event.target.value = '';
+      setScanning(false);
+      setScanProgress(null);
+    }
+  }, [exitDemoState, player.clearQueue, toast]);
+
+  const reconnectSavedFolder = useCallback(async () => {
+    if (!savedHandle || scanning) return;
+    await mountFromHandle(savedHandle);
+  }, [mountFromHandle, savedHandle, scanning]);
+
+  const rescanFolder = useCallback(async () => {
+    if (!activeHandleRef.current || scanning) return;
+    await mountFromHandle(activeHandleRef.current);
+  }, [mountFromHandle, scanning]);
+
+  const disconnectFolder = useCallback(async () => {
+    const wasDemo = isDemoMode;
+    player.clearQueue();
+    revokeAllObjectUrls();
+    revokeDemoAudioUrls();
+    activeHandleRef.current = null;
+    setSongs([]);
+    setFolderName('');
+    setLibGenre('All');
+    if (wasDemo) {
+      exitDemoState();
+      toast('EXITED DEMO MODE');
+      return;
+    }
+    setSavedHandle(null);
+    await clearSavedFolderHandle();
+    toast('LOCAL ARCHIVE DISCONNECTED');
+  }, [exitDemoState, isDemoMode, player.clearQueue, toast]);
 
   const searchArtist = useCallback((artist) => {
     closeSearch();
@@ -233,6 +453,8 @@ export default function App() {
         setQueueOpen((current) => !current);
       } else if (event.key === 'Escape') {
         setImmersionOpen(false);
+        setReelModal(null);
+        setAddSongsPlaylistId(null);
         closeSearch();
         closeContextMenu();
         closeQueue();
@@ -257,17 +479,16 @@ export default function App() {
         isPlaying={player.isPlaying}
         currentTime={player.currentTime}
         duration={player.duration}
-        queueCount={player.queue.length}
-        logFilter={logFilter}
-        mono={switches.mono}
-        onFilter={setLogFilter}
-        onPlay={playSong}
-        onContextMenu={handleContextMenu}
+        savedFolderName={savedHandle?.name || ''}
+        scanning={scanning}
+        scanProgress={scanProgress}
+        onPickFolder={pickFolder}
+        onReconnectFolder={reconnectSavedFolder}
+        onStartDemo={startDemoMode}
         onToggle={player.toggle}
         onStop={handleStop}
         onNext={() => player.next()}
         onPrevious={player.previous}
-        onToggleQueue={() => setQueueOpen(true)}
         onOpenImmersion={() => setImmersionOpen(true)}
         onSeek={player.seekTo}
       />
@@ -280,12 +501,16 @@ export default function App() {
         artists={artists}
         genres={genres}
         currentSong={player.current}
+        folderName={folderName}
+        scanning={scanning}
         tab={libTab}
         genre={libGenre}
         sort={libSort}
         onTab={setLibTab}
         onGenre={setLibGenre}
         onSort={() => setLibSort((current) => current === 'az' ? 'newest' : 'az')}
+        onPickFolder={pickFolder}
+        onStartDemo={startDemoMode}
         onPlay={playSong}
         onContextMenu={handleContextMenu}
         onPlayAlbum={playAlbum}
@@ -315,6 +540,7 @@ export default function App() {
         songs={songs}
         currentSong={player.current}
         onPlayPlaylist={playPlaylist}
+        onAddSongs={(playlist) => setAddSongsPlaylistId(playlist.id)}
         onRename={renamePlaylist}
         onDelete={deletePlaylist}
         onPlay={playSong}
@@ -337,7 +563,22 @@ export default function App() {
       />
     );
   } else if (routeSection === 'settings') {
-    view = <SettingsView switches={switches} onToggleSwitch={updateSwitch} onResetDemo={() => window.location.reload()} onClearHistory={clearHistory} />;
+    view = (
+      <SettingsView
+        switches={switches}
+        folderName={folderName}
+        songCount={songs.length}
+        canRescan={Boolean(activeHandleRef.current)}
+        isDemoMode={isDemoMode}
+        scanning={scanning}
+        onToggleSwitch={updateSwitch}
+        onPickFolder={pickFolder}
+        onStartDemo={startDemoMode}
+        onRescan={rescanFolder}
+        onDisconnect={disconnectFolder}
+        onClearHistory={clearHistory}
+      />
+    );
   } else if (routeSection === 'help') {
     view = <HelpView />;
   } else {
@@ -346,7 +587,17 @@ export default function App() {
 
   return (
     <>
-      <ChassisHeader outputName="NOTHING EAR (2) [LHDC 5.0]" />
+      <ChassisHeader
+        outputName={output.selectedLabel.toUpperCase()}
+        devices={output.devices}
+        selectedId={output.selectedId}
+        supported={output.supported}
+        needsUnlock={output.needsUnlock}
+        canSelectOutput={output.canSelectOutput}
+        onSelectOutput={output.selectDevice}
+        onRefreshOutputs={output.refreshDevices}
+        onPromptPicker={output.promptDevicePicker}
+      />
       <div className="body">
         <Sidebar
           activeView={activeView}
@@ -355,14 +606,16 @@ export default function App() {
           lovedCount={loved.size}
           hiresCount={songs.filter((song) => song.hires).length}
           deckStatus={player.isPlaying ? 'PLAYING' : 'IDLE'}
-          switches={switches}
-          onToggleSwitch={updateSwitch}
+          folderName={folderName}
+          scanning={scanning}
+          onPickFolder={pickFolder}
           onOpenSearch={openSearch}
         />
         <main id="main"><div id="view">{view}</div></main>
       </div>
       <PlayerBar
         current={player.current}
+        hasSongs={songs.length > 0}
         isPlaying={player.isPlaying}
         shuffle={player.shuffle}
         repeat={player.repeat}
@@ -415,14 +668,12 @@ export default function App() {
         duration={player.duration}
         shuffle={player.shuffle}
         repeat={player.repeat}
-        glyphSync={switches.glyphSync}
         onClose={closeImmersion}
         onToggle={player.toggle}
         onNext={() => player.next()}
         onPrevious={player.previous}
         onToggleShuffle={handleToggleShuffle}
         onCycleRepeat={handleCycleRepeat}
-        onToggleGlyph={() => updateSwitch('glyphSync', !switches.glyphSync)}
         onSeek={player.seekTo}
       />
       <ContextMenu
@@ -437,8 +688,30 @@ export default function App() {
         onAddToPlaylist={addToPlaylist}
         onNewPlaylistWith={newPlaylistWith}
       />
+      <ReelModal
+        modal={reelModal}
+        onClose={() => setReelModal(null)}
+        onSubmit={handleReelModalSubmit}
+      />
+      <AddSongsModal
+        playlist={addSongsPlaylistId ? playlists.find((item) => item.id === addSongsPlaylistId) : null}
+        songs={songs}
+        onClose={() => setAddSongsPlaylistId(null)}
+        onToggleSong={toggleSongInPlaylist}
+        onPickFolder={pickFolder}
+        onStartDemo={startDemoMode}
+      />
       <Toasts messages={toasts} />
       <BootScreen />
+      <input
+        ref={fallbackInputRef}
+        type="file"
+        webkitdirectory=""
+        multiple
+        accept="audio/*"
+        style={{ display: 'none' }}
+        onChange={handleFallbackFiles}
+      />
     </>
   );
 }

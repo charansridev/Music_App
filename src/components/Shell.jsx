@@ -1,15 +1,115 @@
-import { HardwareSwitch } from './HardwareSwitch.jsx';
+import { useEffect, useRef, useState } from 'react';
 import { SeekSurface } from './SeekSurface.jsx';
 import { classNames, formatDecibels, formatTime } from '../lib/utils.js';
 
-export function ChassisHeader({ outputName }) {
+export function ChassisHeader({
+  outputName,
+  devices = [],
+  selectedId = '',
+  supported = true,
+  needsUnlock = false,
+  canSelectOutput = false,
+  onSelectOutput,
+  onRefreshOutputs,
+  onPromptPicker,
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handlePointerDown = (event) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  const toggleMenu = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) onRefreshOutputs?.();
+  };
+
   return (
     <header id="chassis">
       <div className="ch-right" style={{ width: '100%', justifyContent: 'flex-end' }}>
-        <div className="out-box">
-          <span className="dim">OUT:</span>
-          <span>{outputName}</span>
-          <span className="out-tally" />
+        <div className="out-wrap" ref={wrapRef}>
+          <button
+            type="button"
+            className={classNames('out-box', open && 'open')}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            title="Switch audio output device"
+            onClick={toggleMenu}
+          >
+            <span className="dim">OUT:</span>
+            <span className="out-label">{outputName}</span>
+            <span className="out-tally" />
+            <span className="out-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
+          </button>
+
+          {open && (
+            <div className="out-menu hw-card" role="listbox" aria-label="Audio output devices">
+              <div className="out-menu-head mono">
+                <span>AUDIO OUTPUT</span>
+                <button
+                  type="button"
+                  title="Refresh output devices"
+                  aria-label="Refresh output devices"
+                  onClick={() => onRefreshOutputs?.()}
+                >
+                  ⟲
+                </button>
+              </div>
+              <div className="out-list">
+                {devices.map((device) => {
+                  const isActive = (device.deviceId || '') === (selectedId || '');
+                  return (
+                    <button
+                      type="button"
+                      key={device.deviceId || 'default'}
+                      role="option"
+                      aria-selected={isActive}
+                      className={classNames('out-item', isActive && 'active')}
+                      onClick={() => {
+                        onSelectOutput?.(device.deviceId, device.label);
+                        setOpen(false);
+                      }}
+                    >
+                      <span className="out-item-dot" />
+                      <span className="out-item-name">{device.label}</span>
+                      {isActive && <span className="out-item-tag mono">ACTIVE</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {supported && (canSelectOutput || needsUnlock) && (
+                <button
+                  type="button"
+                  className="out-detect mono"
+                  onClick={async () => {
+                    setOpen(false);
+                    await onPromptPicker?.();
+                  }}
+                >
+                  + {canSelectOutput ? 'PICK SYSTEM OUTPUT DEVICE' : 'DETECT OUTPUT DEVICES'}
+                </button>
+              )}
+              {!supported && (
+                <div className="out-note mono">BROWSER USES SYSTEM DEFAULT OUTPUT</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>
@@ -23,8 +123,9 @@ export function Sidebar({
   lovedCount,
   hiresCount,
   deckStatus,
-  switches,
-  onToggleSwitch,
+  folderName,
+  scanning,
+  onPickFolder,
   onOpenSearch,
 }) {
   const navigation = [
@@ -42,6 +143,21 @@ export function Sidebar({
         <button type="button" className="sb-search" id="sb-search" onClick={onOpenSearch}>
           <span className="sb-search-hint">SEARCH ARCHIVE (CMD+K)</span>
           <span className="sb-search-ico">⌕</span>
+        </button>
+
+        <button
+          type="button"
+          className={classNames('sb-folder', folderName && 'mounted')}
+          id="sb-folder"
+          disabled={scanning}
+          onClick={onPickFolder}
+          title={folderName ? `Mounted: ${folderName} (Click to change)` : 'Mount a local music folder'}
+        >
+          <span className="sb-folder-left">
+            <i className={classNames('nv-dot', folderName ? 'green' : 'red')} />
+            <span className="sb-folder-name">{scanning ? 'SCANNING...' : folderName || 'MOUNT LOCAL FOLDER'}</span>
+          </span>
+          <span className="sb-folder-action">{folderName ? 'CHANGE' : '+'}</span>
         </button>
 
         <div className="sb-sector">
@@ -63,49 +179,6 @@ export function Sidebar({
             ))}
           </nav>
         </div>
-
-        <div className="sb-module">
-          <div className="sb-sector-head">
-            <span>GLYPH SOUNDWIRE</span>
-            <span className="font-dot green sw-active" id="sw-glyph-status">
-              {switches.glyphSync ? <i className="ping-dot" /> : <i style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#444' }} />}
-              {switches.glyphSync ? 'ACTIVE' : 'BYPASSED'}
-            </span>
-          </div>
-          <div className="sb-panel">
-            <div className="sb-panel-row">
-              <div className="sb-panel-name">
-                <span className="glyph-mini"><i className="gm-ring" /><i className="gm-core" /></span>
-                REEL LIGHT SYNC
-              </div>
-              <HardwareSwitch
-                id="sw-glyph"
-                checked={switches.glyphSync}
-                onChange={(value) => onToggleSwitch('glyphSync', value)}
-                label="Reel light sync"
-              />
-            </div>
-            <div className="sb-panel-foot">
-              <span>STROBE RATE</span>
-              <span className="font-dot cyan">DYNAMIC 1:1</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="sb-module">
-          <div className="sb-sector-head"><span>PHYSICAL CHANNELS</span></div>
-          <div className="sb-channels">
-            <div className="sb-channel">
-              <span>CROSSFEED DSP</span>
-              <HardwareSwitch
-                id="sw-crossfeed"
-                checked={switches.crossfeed}
-                onChange={(value) => onToggleSwitch('crossfeed', value)}
-                label="Crossfeed DSP"
-              />
-            </div>
-          </div>
-        </div>
       </div>
     </aside>
   );
@@ -113,6 +186,7 @@ export function Sidebar({
 
 export function PlayerBar({
   current,
+  hasSongs,
   isPlaying,
   shuffle,
   repeat,
@@ -153,11 +227,11 @@ export function PlayerBar({
             <span className="red-tally" />
             <span className="pf-title" id="pb-title">{current?.title || 'Nothing playing'}</span>
           </div>
-          <div className="pf-artist" id="pb-artist">{current ? `${current.artist} · ${current.album}` : 'PICK A TRACK FROM THE LOG'}</div>
+          <div className="pf-artist" id="pb-artist">{current ? `${current.artist} · ${current.album}` : hasSongs ? 'PICK A TRACK FROM THE LIBRARY' : 'MOUNT A LOCAL FOLDER TO PLAY'}</div>
           <div className="pf-format font-dot">
             <span className="amber" id="pb-spec">{current?.short || '—'}</span>
             <span className="dim">·</span>
-            <span className="green" id="pb-engine">{isPlaying ? 'ASIO DIRECT' : 'STANDBY'}</span>
+            <span className="green" id="pb-engine">{isPlaying ? 'PLAYING' : 'STANDBY'}</span>
           </div>
         </div>
       </div>

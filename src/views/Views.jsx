@@ -10,28 +10,65 @@ export function DeckView({
   isPlaying,
   currentTime,
   duration,
-  queueCount,
-  logFilter,
-  mono,
-  onFilter,
-  onPlay,
-  onContextMenu,
+  savedFolderName,
+  scanning,
+  scanProgress,
+  onPickFolder,
+  onReconnectFolder,
+  onStartDemo,
   onToggle,
   onStop,
   onNext,
   onPrevious,
-  onToggleQueue,
   onOpenImmersion,
   onSeek,
 }) {
   const current = currentSong || songs[0];
-  if (!current) return <div className="empty">NO TRANSMISSIONS</div>;
+  if (!current) {
+    const total = scanProgress?.total || 0;
+    const done = scanProgress?.done || 0;
+    const scanPct = total ? Math.round((done / total) * 100) : 0;
 
-  const filteredSongs = songs.filter((song) => (
-    logFilter === 'all'
-    || (logFilter === 'flac' && song.spec.includes('kHz'))
-    || (logFilter === 'dsd' && song.spec.includes('DSD'))
-  ));
+    return (
+      <div className="mount-wrap">
+        <section className="mount-card hw-card">
+          <div className="deck-eyebrow">
+            <span className="red-tally" />
+            LOCAL ARCHIVE // {scanning ? 'INDEXING' : 'STANDBY'}
+          </div>
+          <h1 className="mount-title">{scanning ? 'SCANNING LOCAL FOLDER' : 'NO LOCAL FOLDER MOUNTED'}</h1>
+          <p className="mount-desc">
+            Mount a folder from your computer to index MP3, FLAC, WAV, M4A, AAC, OGG, or OPUS tracks with embedded album art and metadata. Everything stays local on your device.
+          </p>
+          {scanning && (
+            <div className="mount-progress">
+              <div className="mount-progress-meta mono">
+                <span>INDEXING AUDIO TAGS</span>
+                <span>{total ? `${done} / ${total} (${scanPct}%)` : 'READING DIRECTORY...'}</span>
+              </div>
+              <div className="mount-progress-track">
+                <div className="mount-progress-fill" style={{ width: `${total ? scanPct : 18}%` }} />
+              </div>
+            </div>
+          )}
+          <div className="mount-actions">
+            <button type="button" className="hw-btn primary" disabled={scanning} onClick={onPickFolder}>
+              {scanning ? 'SCANNING...' : '+ MOUNT LOCAL FOLDER'}
+            </button>
+            {savedFolderName && !scanning && (
+              <button type="button" className="hw-btn" onClick={onReconnectFolder}>
+                RECONNECT &ldquo;{savedFolderName.toUpperCase()}&rdquo;
+              </button>
+            )}
+            <button type="button" className="hw-btn" disabled={scanning} onClick={onStartDemo}>
+              ▶ DEMO MODE
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   const progress = duration ? currentTime / duration : 0;
 
   return (
@@ -40,20 +77,10 @@ export function DeckView({
         <section className="deck-card hw-card">
           <div className="deck-head">
             <div>
-              <div className="deck-eyebrow">
-                <span className="red-tally" />
-                STUDIO REEL MASTER DECK // CH-A
-                <span className="hi-res-tag">HI-RES AUDIO</span>
-              </div>
               <h1 className="deck-title">{current.artist}</h1>
               <p className="deck-trackline">
-                TRACK: <b>{current.title.toUpperCase()}</b> · ALBUM: <b>{current.album}</b> (<span className="lossless">{current.hires ? `LOSSLESS ${current.hz}` : current.spec}</span>)
+                TRACK: <b>{current.title.toUpperCase()}</b> · ALBUM: <b>{current.album}</b>
               </p>
-            </div>
-            <div className="deck-specs">
-              <div className="deck-spec"><span className="k">SAMPLING FREQ</span><span className="v amber" id="spec-hz">{current.hz}</span></div>
-              <div className="deck-spec"><span className="k">QUANTIZATION</span><span className="v cyan" id="spec-quant">{current.quant}</span></div>
-              <div className="deck-spec"><span className="k">DYNAMIC RANGE</span><span className="v red" id="spec-dr">{current.dr} (HI-RES)</span></div>
             </div>
           </div>
 
@@ -92,8 +119,8 @@ export function DeckView({
                 </SeekSurface>
                 <div className="ruler-scale">
                   <span>00:00.00</span>
-                  <span className="mid">SEC {formatTime(current.duration / 2)}.00</span>
-                  <span className="end">TOTAL {formatTime(current.duration)}.00</span>
+                  <span className="mid">SEC {current.duration ? formatTime(current.duration / 2) : '0:00'}.00</span>
+                  <span className="end">TOTAL {current.duration ? formatTime(current.duration) : '0:00'}.00</span>
                 </div>
               </div>
 
@@ -108,61 +135,38 @@ export function DeckView({
             </div>
           </div>
 
-          <div className="deck-telemetry">
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <span>BURST RATE: <b>2.82 Mbps</b></span>
-              <span className="ch">CH: <b>STEREO {mono ? '1.0 MONO' : '2.0'}</b></span>
-              <span className="nf">NOISE FLOOR: <b>-118 dB</b></span>
-            </div>
-            <div className="lock-line">
-              <span className="lock-dot" />
-              DIRECT MEMORY STREAMING
-              <span className="font-dot">[LOCKED]</span>
-              <button type="button" className="hw-tab" style={{ marginLeft: 8 }} onClick={onOpenImmersion}>GLYPH FULLSCREEN ⛶</button>
-            </div>
+          <div className="deck-telemetry" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="hw-tab" onClick={onOpenImmersion}>GLYPH FULLSCREEN ⛶</button>
           </div>
-        </section>
-      </div>
-
-      <div className="bottom-grid">
-        <section className="spectrum-card hw-card">
-          <div className="spec-head">
-            <div className="t"><span className="pd cyan" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--cyan)' }} />16-BAND RTA ANALYZER</div>
-            <span className="weight-tag">WEIGHT: A-CURVE</span>
-          </div>
-          <div className="spectrum" id="spectrum">
-            {Array.from({ length: 16 }, (_, index) => (
-              <div className={classNames('sp-col', (index === 4 || index === 8) && 'anchor')} key={index}>
-                <div className="sp-bar" id={`sp-${index}`} />
-              </div>
-            ))}
-          </div>
-          <div className="spec-scale"><span>20Hz</span><span>125Hz</span><b>1kHz</b><b>4kHz</b><span>16kHz</span></div>
-          <div className="spec-foot"><span>PEAK RES: <b>104 Hz</b></span><span className="flat">RESPONSE: FLAT</span></div>
-        </section>
-
-        <section className="log-card hw-card">
-          <div className="log-head">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span className="t">TRANSMISSION LOG // MASTER RELEASES</span>
-              <span className="sub" id="log-count">SHOWING {filteredSongs.length} OF {songs.length} TRACKS</span>
-            </div>
-            <div className="log-filters">
-              {[['all', 'ALL FORMATS'], ['flac', 'FLAC 24'], ['dsd', 'DSD / DSF']].map(([filter, label]) => (
-                <button type="button" className={classNames('log-chip', logFilter === filter && 'active')} key={filter} onClick={() => onFilter(filter)}>{label}</button>
-              ))}
-              <button type="button" className="log-chip" onClick={onToggleQueue}>QUEUE ({queueCount})</button>
-            </div>
-          </div>
-          <TrackTable songs={filteredSongs} currentSong={currentSong} onPlay={onPlay} onContextMenu={onContextMenu} />
-          <div className="log-foot"><span>INDEX ARCHIVE: ~/AUDIO_FLAC_DIR</span><span className="ok">CHECK INTEGRITY: ALL MD5 VERIFIED</span></div>
         </section>
       </div>
     </>
   );
 }
 
-export function LibraryView({ songs, albums, artists, genres, currentSong, tab, genre, sort, onTab, onGenre, onSort, onPlay, onContextMenu, onPlayAlbum, onPlayArtist }) {
+export function LibraryView({ songs, albums, artists, genres, currentSong, folderName, scanning, tab, genre, sort, onTab, onGenre, onSort, onPickFolder, onStartDemo, onPlay, onContextMenu, onPlayAlbum, onPlayArtist }) {
+  if (!songs.length) {
+    return (
+      <>
+        <div className="page-head">
+          <div>
+            <div className="page-title">Master Library</div>
+            <div className="page-sub">NO LOCAL FOLDER MOUNTED</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="hw-btn primary" disabled={scanning} onClick={onPickFolder}>
+              {scanning ? 'SCANNING...' : '+ MOUNT LOCAL FOLDER'}
+            </button>
+            <button type="button" className="hw-btn" disabled={scanning} onClick={onStartDemo}>
+              ▶ DEMO MODE
+            </button>
+          </div>
+        </div>
+        <div className="empty">MOUNT A LOCAL MUSIC FOLDER OR START DEMO MODE TO BROWSE SONGS, ALBUMS, AND ARTISTS</div>
+      </>
+    );
+  }
+
   let filteredSongs = songs.filter((song) => genre === 'All' || song.genre === genre);
   if (sort === 'az') filteredSongs = filteredSongs.slice().sort((a, b) => a.title.localeCompare(b.title));
   else filteredSongs = filteredSongs.slice().sort((a, b) => b.year - a.year || a.album.localeCompare(b.album) || a.track - b.track);
@@ -231,9 +235,12 @@ export function LibraryView({ songs, albums, artists, genres, currentSong, tab, 
       <div className="page-head">
         <div>
           <div className="page-title">Master Library</div>
-          <div className="page-sub">{songs.length} SONGS · {albums.length} RELEASES · {formatMinutes(songs.reduce((total, song) => total + song.duration, 0) * 1000)} OF MUSIC</div>
+          <div className="page-sub">{folderName ? `${folderName.toUpperCase()} · ` : ''}{songs.length} SONGS · {albums.length} RELEASES · {formatMinutes(songs.reduce((total, song) => total + song.duration, 0) * 1000)} OF MUSIC</div>
         </div>
-        <button type="button" className="hw-tab" onClick={onSort}>{sort === 'az' ? 'SORT: A–Z' : 'SORT: NEWEST'}</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="hw-tab" disabled={scanning} onClick={onPickFolder}>{scanning ? 'SCANNING...' : 'CHANGE FOLDER'}</button>
+          <button type="button" className="hw-tab" onClick={onSort}>{sort === 'az' ? 'SORT: A–Z' : 'SORT: NEWEST'}</button>
+        </div>
       </div>
       <div className="hw-tabs" role="tablist" aria-label="Library type">
         {['songs', 'albums', 'artists'].map((item) => (
@@ -264,7 +271,7 @@ export function HiresView({ songs, currentSong, onPlayHires, onPlay, onContextMe
           <div className="page-title">Hi-Res Vault</div>
           <div className="page-sub">{hiresSongs.length} MASTER FILES · {dsdCount} DSD · BIT-PERFECT PLAYBACK GUARANTEED</div>
         </div>
-        <button type="button" className="hw-tab" onClick={onPlayHires}>▶ PLAY VAULT</button>
+        <button type="button" className="hw-tab" disabled={!hiresSongs.length} onClick={onPlayHires}>▶ PLAY VAULT</button>
       </div>
       <TrackTable songs={hiresSongs} currentSong={currentSong} onPlay={onPlay} onContextMenu={onContextMenu} options={{ master: true, empty: 'NO HI-RES MASTERS FOUND' }} />
     </>
@@ -312,13 +319,13 @@ export function StashView({ songs, playlists, loved, currentSong, onNewPlaylist,
           <div className="panel-title"><span className="pd red" />LOVED TRANSMISSIONS</div>
           <button type="button" className="hw-tab" onClick={onShuffleLoved}>⇄ SHUFFLE LOVED</button>
         </div>
-        <TrackTable songs={lovedSongs} currentSong={currentSong} onPlay={onPlay} onContextMenu={onContextMenu} empty="MARK TRANSMISSIONS AS LOVED FROM THE DECK" />
+        <TrackTable songs={lovedSongs} currentSong={currentSong} onPlay={onPlay} onContextMenu={onContextMenu} options={{ empty: 'MARK TRANSMISSIONS AS LOVED FROM THE DECK' }} />
       </div>
     </>
   );
 }
 
-export function PlaylistView({ playlist, songs, currentSong, onPlayPlaylist, onRename, onDelete, onPlay, onContextMenu }) {
+export function PlaylistView({ playlist, songs, currentSong, onPlayPlaylist, onAddSongs, onRename, onDelete, onPlay, onContextMenu }) {
   if (!playlist) return <div className="empty">REEL NOT FOUND</div>;
   const playlistSongs = playlist.songIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean);
   return (
@@ -328,19 +335,45 @@ export function PlaylistView({ playlist, songs, currentSong, onPlayPlaylist, onR
           <div className="page-title">{playlist.name}</div>
           <div className="page-sub">{playlistSongs.length} SONGS · {formatMinutes(playlistSongs.reduce((total, song) => total + song.duration, 0) * 1000)} OF MUSIC</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="hw-btn primary" onClick={() => onPlayPlaylist(playlist)}>▶ PLAY REEL</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="hw-btn primary" disabled={!playlistSongs.length} onClick={() => onPlayPlaylist(playlist)}>▶ PLAY REEL</button>
+          <button type="button" className="hw-btn" onClick={() => onAddSongs(playlist)}>+ ADD SONGS</button>
           <button type="button" className="hw-btn" onClick={() => onRename(playlist)}>RENAME</button>
           <button type="button" className="hw-btn danger" onClick={() => onDelete(playlist)}>ERASE</button>
         </div>
       </div>
-      <TrackTable songs={playlistSongs} currentSong={currentSong} onPlay={onPlay} onContextMenu={onContextMenu} />
+      {playlistSongs.length ? (
+        <TrackTable songs={playlistSongs} currentSong={currentSong} onPlay={onPlay} onContextMenu={onContextMenu} />
+      ) : (
+        <div className="panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 28 }}>
+          <div className="page-sub">THIS REEL HAS NO SONGS YET</div>
+          <button type="button" className="hw-btn primary" onClick={() => onAddSongs(playlist)}>+ ADD SONGS TO REEL</button>
+        </div>
+      )}
     </>
   );
 }
 
 function StatBox({ value, caption }) {
   return <div className="stat-box"><div className="num">{value}</div><div className="cap">{caption}</div></div>;
+}
+
+function computeBestStreak(history) {
+  const days = [...new Set(history.map((entry) => dayKey(entry.ts)))].sort();
+  if (!days.length) return 0;
+  let best = 1;
+  let run = 1;
+  for (let index = 1; index < days.length; index++) {
+    const previous = new Date(`${days[index - 1]}T00:00:00`).getTime();
+    const current = new Date(`${days[index]}T00:00:00`).getTime();
+    if (Math.round((current - previous) / 86400000) === 1) {
+      run += 1;
+      if (run > best) best = run;
+    } else {
+      run = 1;
+    }
+  }
+  return best;
 }
 
 export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, tab, chartMode, onTab, onChartMode, onGoalChange }) {
@@ -393,7 +426,7 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
           <div className="panel">
             <div className="panel-head"><div className="panel-title"><span className="pd amber" />WHEN YOU LISTEN</div></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-              <div className="donut" style={{ width: 130, height: 130, borderRadius: '50%', background: `conic-gradient(${stops})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div className="donut" style={{ width: 130, height: 130, borderRadius: '50%', background: history.length ? `conic-gradient(${stops})` : '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
                   <div>
                     <b className="font-dot" style={{ fontSize: 14, color: '#fff' }}>{formatMinutes(Stats.totalMs(history) / Math.max(1, Stats.totalPlays(history)))}</b>
@@ -415,7 +448,8 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
       </>
     );
   } else if (tab === 'history') {
-    body = Stats.historyByDay(history).slice(0, 14).map((day) => (
+    const dayGroups = Stats.historyByDay(history).slice(0, 14);
+    body = dayGroups.length ? dayGroups.map((day) => (
       <div className="history-day hw-card" key={dayKey(day.ts)}>
         <div className="hd-date">{formatDay(day.ts)} · {day.plays.length} PLAYS · {formatMinutes(day.plays.reduce((sum, play) => sum + (play.ms || 0), 0))}</div>
         {day.plays.slice(0, 6).map((play) => {
@@ -431,9 +465,10 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
           );
         })}
       </div>
-    )) || <div className="empty">NO HISTORY YET</div>;
+    )) : <div className="empty">NO HISTORY YET</div>;
   } else {
     const streak = Stats.streak(history);
+    const bestStreak = Math.max(computeBestStreak(history), streak);
     const activeDays = new Set(history.map((entry) => dayKey(entry.ts)));
     const dots = [];
     const date = new Date();
@@ -445,7 +480,7 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
       <>
         <div className="stat-grid">
           <StatBox value={streak} caption="Current streak · days" />
-          <StatBox value={Math.max(11, streak)} caption="Best streak · days" />
+          <StatBox value={bestStreak} caption="Best streak · days" />
           <StatBox value={formatMinutes(Stats.todayMs(history))} caption={`Today vs ${goalMin} min goal`} />
           <StatBox value={Math.round(Stats.avgDayMs(history) / 60000)} caption="Avg day · min" />
         </div>
@@ -489,7 +524,20 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
   );
 }
 
-export function SettingsView({ switches, onToggleSwitch, onResetDemo, onClearHistory }) {
+export function SettingsView({
+  switches,
+  folderName,
+  songCount,
+  canRescan,
+  isDemoMode,
+  scanning,
+  onToggleSwitch,
+  onPickFolder,
+  onStartDemo,
+  onRescan,
+  onDisconnect,
+  onClearHistory,
+}) {
   const settingRow = (label, description, key) => (
     <div className="setting-row" key={key}>
       <div><div>{label}</div><div className="desc">{description}</div></div>
@@ -507,13 +555,30 @@ export function SettingsView({ switches, onToggleSwitch, onResetDemo, onClearHis
         {settingRow('Mono downmix', 'Sum stereo output to a single channel', 'mono')}
       </div>
       <div className="panel" style={{ maxWidth: 560 }}>
-        <div className="panel-head"><div className="panel-title"><span className="pd amber" />DEMO DATA</div></div>
+        <div className="panel-head"><div className="panel-title"><span className="pd amber" />LOCAL ARCHIVE</div></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" className="hw-btn" onClick={onResetDemo}>⟲ RESET DEMO LIBRARY</button>
+          <button type="button" className="hw-btn primary" disabled={scanning} onClick={onPickFolder}>
+            {scanning ? 'SCANNING...' : folderName && !isDemoMode ? 'CHANGE FOLDER' : 'MOUNT LOCAL FOLDER'}
+          </button>
+          {!isDemoMode && (
+            <button type="button" className="hw-btn" disabled={scanning} onClick={onStartDemo}>▶ DEMO MODE</button>
+          )}
+          {canRescan && (
+            <button type="button" className="hw-btn" disabled={scanning} onClick={onRescan}>⟲ RESCAN FOLDER</button>
+          )}
+          {folderName && (
+            <button type="button" className="hw-btn danger" disabled={scanning} onClick={onDisconnect}>
+              {isDemoMode ? 'EXIT DEMO MODE' : 'DISCONNECT'}
+            </button>
+          )}
           <button type="button" className="hw-btn danger" onClick={onClearHistory}>ERASE PLAY HISTORY</button>
         </div>
         <p style={{ marginTop: 14, fontFamily: "'Space Mono', monospace", fontSize: 10, color: 'var(--ink-3)', lineHeight: 1.7 }}>
-          DEMO MODE: 13 SAMPLE TRACKS GENERATED LOCALLY. FOLDER SCANNING + REAL MUSIC FILES ARRIVE IN THE NEXT MILESTONE.
+          {isDemoMode
+            ? `DEMO MODE ACTIVE · ${songCount} SYNTHESIZED SAMPLE TRACKS LOADED.`
+            : folderName
+              ? `MOUNTED FOLDER: "${folderName.toUpperCase()}" · ${songCount} TRACKS INDEXED LOCALLY.`
+              : 'NO LOCAL FOLDER MOUNTED. PICK A MUSIC FOLDER OR USE DEMO MODE TO TEST THE RIG.'}
         </p>
       </div>
     </>

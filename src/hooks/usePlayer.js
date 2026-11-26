@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { demoAudioSrc } from '../data/demoData.js';
+import { getSongAudioUrl } from '../lib/localLibrary.js';
 
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -137,8 +137,11 @@ export function usePlayer({ songs, onTrackStart, onListen }) {
       return;
     }
 
+    const src = getSongAudioUrl(song);
+    if (!src) return;
+
     currentRef.current = song;
-    element.src = demoAudioSrc(song);
+    element.src = src;
     element.load();
     setCurrentTime(0);
     durationRef.current = song.duration || 0;
@@ -162,10 +165,28 @@ export function usePlayer({ songs, onTrackStart, onListen }) {
         title: song.title,
         artist: song.artist,
         album: song.album,
-        artwork: [{ src: song.art, sizes: '320x320', type: 'image/svg+xml' }],
+        artwork: [{ src: song.art, sizes: '320x320', type: song.artType || 'image/svg+xml' }],
       });
     }
   }, []);
+
+  const clearQueue = useCallback(() => {
+    flushListenRef.current();
+    loadIdRef.current += 1;
+    const element = audioRef.current;
+    if (element) {
+      element.pause();
+      element.removeAttribute('src');
+      element.load();
+    }
+    currentRef.current = null;
+    historyIdRef.current = null;
+    replaceQueue([], -1);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    durationRef.current = 0;
+    setDuration(0);
+  }, [replaceQueue]);
 
   const playQueue = useCallback((nextSongs, startIndex = 0) => {
     const index = nextSongs.length ? clamp(startIndex, 0, nextSongs.length - 1) : -1;
@@ -252,7 +273,7 @@ export function usePlayer({ songs, onTrackStart, onListen }) {
     const element = audioRef.current;
     if (!element) return;
     if (!currentRef.current) {
-      playQueue(songsRef.current, 0);
+      if (songsRef.current.length) playQueue(songsRef.current, 0);
       return;
     }
     if (element.paused) element.play().catch(() => {});
@@ -339,6 +360,7 @@ export function usePlayer({ songs, onTrackStart, onListen }) {
     shuffle,
     repeat,
     playQueue,
+    clearQueue,
     playNext,
     addToQueue,
     removeFromQueue,

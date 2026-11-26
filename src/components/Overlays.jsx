@@ -72,7 +72,7 @@ export function QueuePanel({ open, queue, qIndex, currentSong, isPlaying, onClos
         <button type="button" title="Close" aria-label="Close queue" onClick={onClose}>✕</button>
       </div>
       <div id="queue-list">
-        {queue.map((song, index) => (
+        {queue.length ? queue.map((song, index) => (
           <div
             className={classNames('q-row', index === qIndex && 'current')}
             key={`${song.id}-${index}`}
@@ -102,7 +102,7 @@ export function QueuePanel({ open, queue, qIndex, currentSong, isPlaying, onClos
               </button>
             )}
           </div>
-        )) || <div className="empty">QUEUE IS EMPTY</div>}
+        )) : <div className="empty">QUEUE IS EMPTY</div>}
       </div>
     </aside>
   );
@@ -167,7 +167,11 @@ export function SearchOverlay({ open, query, songs, artists, albums, onQuery, on
           }}
         />
         <div id="search-results">
-          {!normalizedQuery && <div className="empty" style={{ margin: 14 }}>TYPE TO SEARCH THE ARCHIVE</div>}
+          {!normalizedQuery && (
+            <div className="empty" style={{ margin: 14 }}>
+              {songs.length ? 'TYPE TO SEARCH THE ARCHIVE' : 'MOUNT A LOCAL FOLDER TO SEARCH'}
+            </div>
+          )}
           {artistResults.length > 0 && <div className="sr-label">PERFORMERS</div>}
           {artistResults.map((artist) => renderRow(artist.art, artist.name, `${artist.songIds.length} songs`, () => onSearchArtist(artist), artist.name))}
           {albumResults.length > 0 && <div className="sr-label">RELEASES</div>}
@@ -190,19 +194,22 @@ export function ImmersionOverlay({
   duration,
   shuffle,
   repeat,
-  glyphSync,
   onClose,
   onToggle,
   onNext,
   onPrevious,
   onToggleShuffle,
   onCycleRepeat,
-  onToggleGlyph,
   onSeek,
 }) {
   const exitRef = useRef(null);
   const song = currentSong || songs[0];
   const progress = duration ? currentTime / duration : 0;
+  const trackIndex = song ? songs.indexOf(song) : -1;
+  const trackCounter = trackIndex >= 0
+    ? `TRACK ${String(trackIndex + 1).padStart(2, '0')} / ${String(songs.length).padStart(2, '0')}`
+    : 'STANDBY';
+  const repeatLabel = repeat === 'off' ? 'REPEAT OFF' : repeat === 'all' ? 'REPEAT ALL' : 'REPEAT 1';
 
   useEffect(() => {
     if (open) exitRef.current?.focus();
@@ -210,86 +217,112 @@ export function ImmersionOverlay({
 
   return (
     <div id="immersion" className={classNames(open && 'open')} aria-hidden={!open} inert={open ? undefined : ''}>
-      <div className="imm-top">
-        <div className="imm-brand">
-          <span className="imm-mark" />
-          <span className="mono bold">NOTHING (R)</span>
-          <span className="mono dim">// FULLSCREEN IMMERSION // DECK-01</span>
-        </div>
-        <button type="button" className="imm-exit hw-press" ref={exitRef} onClick={onClose}><span>ESC // EXIT FULLSCREEN</span></button>
-      </div>
-      <div className="imm-tel imm-tl mono">
-        <span className="tel-dot" /> AUDIO CORE: DSD-ASIO
-        <span>CH: 02 STEREO</span>
-        <span>BUFFER: 64 SMPL</span>
-        <span className="font-dot green">JITTER &lt; 0.01ps</span>
-      </div>
-      <div className="imm-tel imm-tr mono">
-        <span>OUTPUT: NOTHING EAR (2) [LHDC 5.0]</span>
-        <span className="font-dot">MOD: NO-AUD-FS</span>
-      </div>
       <div className="imm-glows">
         <div className="glow glow-red" id="glow-red" />
         <div className="glow glow-cyan" id="glow-cyan" />
-        <div className="glow glow-amber" id="glow-amber" />
       </div>
-      <div className="imm-glyph">
-        <svg viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="400" cy="300" r="260" className="g-track" strokeDasharray="12 8 4 8" strokeWidth="1.5" />
-          <circle cx="400" cy="300" r="225" id="glyph-ring-outer" strokeDasharray="48 16 12 16" strokeWidth="2" />
-          <circle cx="400" cy="300" r="185" id="glyph-ring-mid" strokeDasharray="6 10" strokeWidth="3" />
-          <circle cx="400" cy="300" r="140" className="g-ticks" strokeDasharray="2 6" strokeWidth="1" />
-          <g className="g-dots" fill="currentColor">
-            <circle cx="90" cy="90" r="2.5" /><circle cx="106" cy="90" r="2.5" /><circle cx="122" cy="90" r="2.5" /><circle cx="138" cy="90" r="2.5" />
-            <circle cx="90" cy="106" r="2.5" /><circle className="g-d1" cx="106" cy="106" r="2.5" /><circle cx="122" cy="106" r="2.5" /><circle cx="138" cy="106" r="2.5" />
-            <circle cx="90" cy="122" r="2.5" /><circle cx="106" cy="122" r="2.5" /><circle className="g-d2" cx="122" cy="122" r="2.5" /><circle cx="138" cy="122" r="2.5" />
-          </g>
-          <g className="g-dots" fill="currentColor">
-            <circle cx="662" cy="478" r="2.5" /><circle className="g-d1" cx="678" cy="478" r="2.5" /><circle cx="694" cy="478" r="2.5" /><circle cx="710" cy="478" r="2.5" />
-            <circle cx="662" cy="494" r="2.5" /><circle cx="678" cy="494" r="2.5" /><circle className="g-d1" cx="694" cy="494" r="2.5" /><circle cx="710" cy="494" r="2.5" />
-            <circle cx="662" cy="510" r="2.5" /><circle cx="678" cy="510" r="2.5" /><circle cx="694" cy="510" r="2.5" /><circle cx="710" cy="510" r="2.5" />
-          </g>
-          <path className="g-arc" d="M 140 300 A 260 260 0 0 1 210 120" strokeLinecap="round" strokeWidth="4" />
-          <path className="g-arc a2" d="M 660 300 A 260 260 0 0 1 590 480" strokeLinecap="round" strokeWidth="4" />
-          <path className="g-arc a3" d="M 270 70 A 260 260 0 0 1 360 45" strokeLinecap="round" strokeWidth="3" />
-          <path className="g-arc a4" d="M 440 555 A 260 260 0 0 1 530 530" strokeLinecap="round" strokeWidth="3" />
-        </svg>
-      </div>
-      <div className="imm-card hw-card" id="imm-card">
-        <div className="imm-card-top">
-          <div className="imm-badge"><span className="ping-dot" id="imm-dot" /><span className="mono">GLYPH MATRIX // 1:1 AUDIO REACTIVE</span></div>
-          <span className="font-dot cyan" id="imm-spec">{song ? song.spec.toUpperCase() : 'FLAC 24-BIT / 96KHZ'}</span>
+
+      <div className="imm-top">
+        <div className="imm-brand">
+          <span className="imm-dot" id="imm-dot" />
+          <span className="mono bold">NOTHING (R)</span>
+          <span className="mono dim">// {trackCounter}</span>
         </div>
-        <div className="imm-now">
-          <div className="imm-art" id="imm-art" style={song ? { backgroundImage: `url('${song.art}')` } : undefined} />
-          <div className="imm-meta">
-            <span className="mono red" id="imm-track-label">{song ? `NOW PLAYING // TRACK ${String(Math.max(0, songs.indexOf(song)) + 1).padStart(2, '0')}` : 'NOW PLAYING // STANDBY'}</span>
-            <h2 id="imm-title">{song?.title || '—'}</h2>
-            <p id="imm-artist">{song ? `${song.artist} · ${song.album} (Lossless)` : '—'}</p>
-            <div className="imm-telemetry mono">
-              <span id="imm-lufs">LUFS -14.2</span><span>·</span><span id="imm-dr">{song?.dr || 'DR 11'}</span><span>·</span><span>ASIO DIRECT</span>
+        <button type="button" className="imm-exit milled-button hw-press" ref={exitRef} onClick={onClose}>
+          ESC // EXIT
+        </button>
+      </div>
+
+      <div className="imm-stage">
+        <div className="imm-turntable">
+          <svg className="imm-glyph-svg" viewBox="0 0 460 460" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="230" cy="230" r="224" className="g-track" strokeDasharray="10 8 3 8" strokeWidth="1.2" />
+            <circle cx="230" cy="230" r="214" id="glyph-ring-outer" strokeDasharray="48 16 12 16" strokeWidth="2" />
+            <circle cx="230" cy="230" r="198" id="glyph-ring-mid" strokeDasharray="6 10" strokeWidth="2.5" />
+            <circle cx="230" cy="230" r="182" className="g-ticks" strokeDasharray="2 6" strokeWidth="1" />
+          </svg>
+
+          <div className="imm-glyph-leds" aria-hidden="true">
+            {Array.from({ length: 8 }, (_, index) => (
+              <span className="imm-gl-seg" style={{ '--seg-angle': `${index * 45}deg` }} key={index} />
+            ))}
+          </div>
+
+          <div className="imm-platter">
+            <div className="imm-strobe" />
+            <div
+              className="imm-platter-core spool"
+              id="imm-platter-core"
+              style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+            >
+              <div className="imm-grooves" />
+              <span className="imm-spoke h" />
+              <span className="imm-spoke v" />
+              <div className="imm-label" style={song ? { backgroundImage: `url('${song.art}')` } : undefined} />
+              <div className="imm-spindle"><i /></div>
+            </div>
+          </div>
+
+          <div className={classNames('imm-tonearm', isPlaying && 'engaged')} aria-hidden="true">
+            <div className="imm-arm-base"><i /></div>
+            <div className="imm-arm-wand">
+              <div className="imm-arm-headshell"><span className="imm-stylus" /></div>
             </div>
           </div>
         </div>
-        <div className="imm-controls">
-          <div className="imm-progress">
-            <span className="mono" id="imm-cur">{formatTime(currentTime)}</span>
-            <SeekSurface id="imm-track" className="imm-track" value={progress} onSeek={onSeek} label="Seek immersion playback">
-              <div className="imm-fill" id="imm-fill" style={{ width: `${progress * 100}%` }} />
-            </SeekSurface>
-            <span className="mono" id="imm-dur">{formatTime(duration)}</span>
+
+        <div className="imm-meta">
+          <h2 id="imm-title">{song?.title || 'No track loaded'}</h2>
+          <p id="imm-artist">
+            {song ? `${song.artist} · ${song.album}${song.year ? ` · ${song.year}` : ''}` : 'Select a track to begin'}
+          </p>
+        </div>
+      </div>
+
+      <div className="imm-dock hw-card" id="imm-card">
+        <div className="imm-progress">
+          <span className="font-dot" id="imm-cur">{formatTime(currentTime)}</span>
+          <SeekSurface id="imm-track" className="imm-track" value={progress} onSeek={onSeek} label="Seek immersion playback">
+            <div className="ticks ruler-tape" />
+            <div className="imm-fill" id="imm-fill" style={{ width: `${progress * 100}%` }} />
+          </SeekSurface>
+          <span className="font-dot" id="imm-dur">{formatTime(duration)}</span>
+        </div>
+
+        <div className="imm-transport">
+          <div className="imm-left">
+            <button
+              type="button"
+              className={classNames('pf-toggle', shuffle && 'active')}
+              id="imm-shuffle"
+              title="Shuffle"
+              aria-label="Toggle shuffle"
+              aria-pressed={shuffle}
+              onClick={onToggleShuffle}
+            >
+              SHUFFLE
+            </button>
           </div>
-          <div className="imm-transport">
-            <div className="imm-left">
-              <button type="button" className={classNames('imm-btn', shuffle && 'active')} id="imm-shuffle" title="Shuffle" aria-label="Toggle shuffle" aria-pressed={shuffle} onClick={onToggleShuffle}>⇄</button>
-              <button type="button" className={classNames('imm-btn', repeat !== 'off' && 'active')} id="imm-repeat" title="Repeat" aria-label="Cycle repeat mode" onClick={onCycleRepeat}>↻</button>
-            </div>
-            <div className="imm-mid">
-              <button type="button" className="imm-skip hw-press" id="imm-prev" title="Previous" aria-label="Previous track" onClick={onPrevious}>⏮</button>
-              <button type="button" className="imm-play hw-press" id="imm-play" title="Play / Pause" aria-label={isPlaying ? 'Pause' : 'Play'} onClick={onToggle}>{isPlaying ? '❚❚' : '▶'}</button>
-              <button type="button" className="imm-skip hw-press" id="imm-next" title="Next" aria-label="Next track" onClick={onNext}>⏭</button>
-            </div>
-            <button type="button" className={classNames('imm-mode hw-press', !glyphSync && 'off')} id="imm-mode" onClick={onToggleGlyph}>{glyphSync ? 'SYNC: 1:1' : 'SYNC: OFF'}</button>
+
+          <div className="imm-mid">
+            <button type="button" className="milled-button imm-skip hw-press" id="imm-prev" title="Previous" aria-label="Previous track" onClick={onPrevious}>⏮</button>
+            <button type="button" className="imm-play hw-press" id="imm-play" title="Play / Pause" aria-label={isPlaying ? 'Pause' : 'Play'} onClick={onToggle}>
+              {isPlaying ? '❚❚' : '▶'}
+            </button>
+            <button type="button" className="milled-button imm-skip hw-press" id="imm-next" title="Next" aria-label="Next track" onClick={onNext}>⏭</button>
+          </div>
+
+          <div className="imm-right">
+            <button
+              type="button"
+              className={classNames('pf-toggle', repeat !== 'off' && 'active')}
+              id="imm-repeat"
+              title="Repeat"
+              aria-label={`Repeat mode: ${repeat}`}
+              onClick={onCycleRepeat}
+            >
+              {repeatLabel}
+            </button>
           </div>
         </div>
       </div>
@@ -325,4 +358,169 @@ export function ContextMenu({ menu, playlists, loved, onClose, onPlay, onPlayNex
 
 export function Toasts({ messages }) {
   return <div id="toasts" aria-live="polite">{messages.map((toast) => <div className="toast" key={toast.id}>{toast.message}</div>)}</div>;
+}
+
+export function ReelModal({ modal, onClose, onSubmit }) {
+  const [name, setName] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!modal) return undefined;
+    setName(modal.mode === 'rename' ? modal.playlist?.name || '' : '');
+    const timer = window.setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 20);
+    return () => window.clearTimeout(timer);
+  }, [modal]);
+
+  if (!modal) return null;
+  const isRename = modal.mode === 'rename';
+  const trimmed = name.trim();
+
+  return (
+    <div
+      className="modal-overlay open"
+      role="dialog"
+      aria-modal="true"
+      aria-label={isRename ? 'Rename reel' : 'Create new reel'}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <form
+        className="modal-box hw-card"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (trimmed) onSubmit(trimmed);
+        }}
+      >
+        <div className="modal-head mono">
+          <span>{isRename ? 'RENAME REEL // TAPE STASH' : 'NEW REEL // TAPE STASH'}</span>
+          <button type="button" onClick={onClose} aria-label="Close dialog">✕</button>
+        </div>
+        <div className="modal-body">
+          {modal.song && (
+            <div className="modal-hint mono">SEEDING WITH: <b>{modal.song.title.toUpperCase()}</b></div>
+          )}
+          <input
+            ref={inputRef}
+            type="text"
+            className="modal-input"
+            placeholder="ENTER REEL NAME (E.G. NIGHT DRIVE)"
+            maxLength={48}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                onClose();
+              }
+            }}
+          />
+        </div>
+        <div className="modal-foot">
+          <button type="button" className="hw-btn" onClick={onClose}>CANCEL</button>
+          <button type="submit" className="hw-btn primary" disabled={!trimmed}>
+            {isRename ? 'SAVE NAME' : 'CREATE REEL'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export function AddSongsModal({ playlist, songs, onClose, onToggleSong, onPickFolder, onStartDemo }) {
+  const [query, setQuery] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!playlist?.id) return undefined;
+    setQuery('');
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 20);
+    return () => window.clearTimeout(timer);
+  }, [playlist?.id]);
+
+  const normalized = query.trim().toLowerCase();
+  const addedSet = useMemo(() => new Set(playlist?.songIds || []), [playlist?.songIds]);
+  const filteredSongs = useMemo(() => {
+    if (!normalized) return songs;
+    return songs.filter((song) => (
+      song.title.toLowerCase().includes(normalized)
+      || song.artist.toLowerCase().includes(normalized)
+      || song.album.toLowerCase().includes(normalized)
+    ));
+  }, [normalized, songs]);
+
+  if (!playlist) return null;
+
+  return (
+    <div
+      className="modal-overlay open"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Add songs to ${playlist.name}`}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="modal-box hw-card modal-lg">
+        <div className="modal-head mono">
+          <span>ADD SONGS // {playlist.name.toUpperCase()}</span>
+          <button type="button" onClick={onClose} aria-label="Close song picker">✕</button>
+        </div>
+
+        {songs.length > 0 ? (
+          <>
+            <input
+              ref={inputRef}
+              type="text"
+              className="modal-input modal-search"
+              placeholder="FILTER TRACKS BY TITLE, ARTIST, OR ALBUM..."
+              autoComplete="off"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.stopPropagation();
+                  onClose();
+                }
+              }}
+            />
+            <div className="picker-list">
+              {filteredSongs.length ? filteredSongs.map((song) => {
+                const added = addedSet.has(song.id);
+                return (
+                  <button
+                    type="button"
+                    key={song.id}
+                    className={classNames('picker-row', added && 'added')}
+                    onClick={() => onToggleSong(playlist.id, song)}
+                  >
+                    <div className="sr-thumb" style={{ backgroundImage: `url('${song.art}')` }} />
+                    <div className="picker-meta">
+                      <div className="t1">{song.title}</div>
+                      <div className="t2">{song.artist} · {song.album}</div>
+                    </div>
+                    <span className={classNames('picker-pill mono', added && 'added')}>
+                      {added ? '✓ ADDED' : '+ ADD'}
+                    </span>
+                  </button>
+                );
+              }) : <div className="empty" style={{ margin: 12 }}>NO MATCHING TRACKS</div>}
+            </div>
+          </>
+        ) : (
+          <div className="modal-body" style={{ padding: 24, textAlign: 'center', alignItems: 'center' }}>
+            <div className="modal-hint mono">NO TRACKS INDEXED YET. MOUNT A LOCAL FOLDER OR START DEMO MODE FIRST.</div>
+            <div className="mount-actions" style={{ justifyContent: 'center' }}>
+              <button type="button" className="hw-btn primary" onClick={() => { onClose(); onPickFolder(); }}>+ MOUNT LOCAL FOLDER</button>
+              <button type="button" className="hw-btn" onClick={() => { onClose(); onStartDemo(); }}>▶ DEMO MODE</button>
+            </div>
+          </div>
+        )}
+
+        <div className="modal-foot">
+          <span className="modal-count mono">{playlist.songIds.length} {playlist.songIds.length === 1 ? 'SONG' : 'SONGS'} IN REEL</span>
+          <button type="button" className="hw-btn primary" onClick={onClose}>DONE</button>
+        </div>
+      </div>
+    </div>
+  );
 }
