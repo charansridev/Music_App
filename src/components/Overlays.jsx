@@ -14,7 +14,6 @@ import {
   Plus,
   Search,
   SkipForward,
-  Sparkles,
   X,
 } from 'lucide-react';
 import { EmptyState } from './EmptyState.jsx';
@@ -339,7 +338,7 @@ export function SearchOverlay({ open, query, songs, artists, albums, onQuery, on
                   variant="search"
                   eyebrow="INDEX"
                   title={songs.length ? 'Type to search' : 'Archive offline'}
-                  description={songs.length ? `Searching ${songs.length} local tracks across ${albums.length} albums.` : 'Mount a local music folder or start demo mode first.'}
+                  description={songs.length ? `Searching ${songs.length} local tracks across ${albums.length} albums.` : 'Mount a local music folder first.'}
                 />
               )}
               {artistResults.length > 0 && <div className="sr-label mono">ARTISTS</div>}
@@ -534,7 +533,7 @@ export function ReelModal({ modal, onClose, onSubmit }) {
   );
 }
 
-export function AddSongsModal({ playlist, songs, onClose, onToggleSong, onPickFolder, onStartDemo }) {
+export function AddSongsModal({ playlist, songs, onClose, onToggleSong, onPickFolder }) {
   const [query, setQuery] = useState('');
   const inputRef = useRef(null);
 
@@ -639,16 +638,11 @@ export function AddSongsModal({ playlist, songs, onClose, onToggleSong, onPickFo
                   variant="folder"
                   eyebrow="ARCHIVE EMPTY"
                   title="No tracks indexed yet"
-                  description="Mount a local music folder or start demo mode first."
+                  description="Mount a local music folder first."
                   actions={(
-                    <>
-                      <button type="button" className="hw-btn primary" onClick={() => { onClose(); onPickFolder(); }}>
-                        <FolderOpen size={14} strokeWidth={1.8} /> Mount Local Folder
-                      </button>
-                      <button type="button" className="hw-btn" onClick={() => { onClose(); onStartDemo(); }}>
-                        <Sparkles size={14} strokeWidth={1.8} /> Demo Mode
-                      </button>
-                    </>
+                    <button type="button" className="hw-btn primary" onClick={() => { onClose(); onPickFolder(); }}>
+                      <FolderOpen size={14} strokeWidth={1.8} /> Mount Local Folder
+                    </button>
                   )}
                 />
               </div>

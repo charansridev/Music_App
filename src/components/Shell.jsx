@@ -100,7 +100,7 @@ export function ChassisHeader({
         </button>
 
         <a href="#/deck" className="brand" aria-label="MUZIK Home">
-          <span className="brand-dot" aria-hidden="true" />
+          <img src="./icon.png" alt="" className="brand-icon" />
           <span className="brand-name">MUZIK</span>
         </a>
       </div>
@@ -318,7 +318,7 @@ export function Sidebar({
             <div className="sb-top">
               <div className="sb-mobile-head">
                 <span className="brand">
-                  <span className="brand-dot" aria-hidden="true" />
+                  <img src="./icon.png" alt="" className="brand-icon" />
                   <span className="brand-name">MUZIK</span>
                 </span>
                 <button type="button" className="ch-icon-btn" aria-label="Close menu" onClick={onCloseMobile}>
@@ -436,7 +436,7 @@ export function PlayerBar({
                 ? current.artist
                 : hasSongs
                   ? 'Select a track'
-                  : 'Mount folder or Demo'}
+                  : 'Mount a local folder'}
             </div>
             <span className="sr-only" id="pb-engine">{isPlaying ? 'PLAYING' : 'STANDBY'}</span>
           </div>

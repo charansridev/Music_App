@@ -15,7 +15,6 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
-  Sparkles,
   Square,
   Trash2,
   Volume2,
@@ -65,7 +64,6 @@ export function DeckView({
   scanProgress,
   onPickFolder,
   onReconnectFolder,
-  onStartDemo,
   onToggle,
   onStop,
   onNext,
@@ -152,16 +150,6 @@ export function DeckView({
                   Reconnect &ldquo;{savedFolderName}&rdquo;
                 </motion.button>
               )}
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                className="hw-btn ed-btn-green"
-                disabled={scanning}
-                onClick={onStartDemo}
-              >
-                <Sparkles size={15} strokeWidth={2} />
-                Try Demo Mode (13 Tracks)
-              </motion.button>
             </div>
             <div className="ed-sheet-foot mono">
               <span>ZERO CLOUD UPLOAD</span>
@@ -611,7 +599,6 @@ export function LibraryView({
   onGenre,
   onSort,
   onPickFolder,
-  onStartDemo,
   onPlay,
   onContextMenu,
   onPlayAlbum,
@@ -652,16 +639,11 @@ export function LibraryView({
           variant="folder"
           eyebrow="MASTER ARCHIVE"
           title="Your library is empty"
-          description="Mount a local music folder or try Demo Mode to browse tracks, albums, and artists."
+          description="Mount a local music folder to browse tracks, albums, and artists."
           actions={(
-            <>
-              <button type="button" className="hw-btn primary" disabled={scanning} onClick={onPickFolder}>
-                <FolderOpen size={14} strokeWidth={1.9} /> Mount Local Folder
-              </button>
-              <button type="button" className="hw-btn" disabled={scanning} onClick={onStartDemo}>
-                <Sparkles size={14} strokeWidth={1.9} /> Try Demo Mode
-              </button>
-            </>
+            <button type="button" className="hw-btn primary" disabled={scanning} onClick={onPickFolder}>
+              <FolderOpen size={14} strokeWidth={1.9} /> Mount Local Folder
+            </button>
           )}
         />
       </>
@@ -1231,13 +1213,14 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
 export function SettingsView({
   switches,
   folderName,
+  folderPath = '',
   songCount,
   canRescan,
-  isDemoMode,
+  isElectron = false,
   scanning,
   onToggleSwitch,
   onPickFolder,
-  onStartDemo,
+  onUseDefaultFolder,
   onRescan,
   onDisconnect,
   onClearHistory,
@@ -1275,11 +1258,11 @@ export function SettingsView({
           <div className="settings-actions">
             <button type="button" className="hw-btn primary" disabled={scanning} onClick={onPickFolder}>
               <FolderOpen size={13} strokeWidth={1.9} />
-              {scanning ? 'Scanning...' : folderName && !isDemoMode ? 'Change Folder' : 'Mount Local Folder'}
+              {scanning ? 'Scanning...' : folderName ? 'Change Folder' : 'Mount Local Folder'}
             </button>
-            {!isDemoMode && (
-              <button type="button" className="hw-btn" disabled={scanning} onClick={onStartDemo}>
-                <Sparkles size={13} strokeWidth={1.9} /> Demo Mode
+            {isElectron && (
+              <button type="button" className="hw-btn" disabled={scanning} onClick={onUseDefaultFolder}>
+                <FolderOpen size={13} strokeWidth={1.9} /> Default Music Folder
               </button>
             )}
             {canRescan && (
@@ -1289,7 +1272,7 @@ export function SettingsView({
             )}
             {folderName && (
               <button type="button" className="hw-btn danger" disabled={scanning} onClick={onDisconnect}>
-                {isDemoMode ? 'Exit Demo Mode' : 'Disconnect'}
+                Disconnect
               </button>
             )}
             <button type="button" className="hw-btn danger" onClick={onClearHistory}>
@@ -1297,11 +1280,9 @@ export function SettingsView({
             </button>
           </div>
           <p className="settings-note mono">
-            {isDemoMode
-              ? `Demo mode active · ${songCount} sample tracks loaded.`
-              : folderName
-                ? `Mounted folder: "${folderName}" · ${songCount} tracks indexed locally.`
-                : 'No local folder mounted. Pick a folder or launch Demo Mode.'}
+            {folderName
+              ? `Mounted folder: "${folderPath || folderName}" · ${songCount} tracks indexed locally.`
+              : 'No local folder mounted. Pick a folder to index your music.'}
           </p>
         </div>
       </div>

@@ -2,16 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MotionConfig, motion } from 'framer-motion';
 import { ChassisHeader, PlayerBar, Sidebar } from './components/Shell.jsx';
 import { AddSongsModal, BootScreen, ContextMenu, QueuePanel, ReelModal, SearchOverlay, Toasts } from './components/Overlays.jsx';
-import { buildDemoSongs, DEMO_LOVED, DEMO_PLAYLISTS, revokeDemoAudioUrls, seedDemoHistory } from './lib/demoLibrary.js';
 import {
+  clearSavedElectronFolder,
   clearSavedFolderHandle,
+  getDefaultElectronMusicFolder,
   indexLibrary,
+  isElectronApp,
+  isElectronFolderDisconnected,
+  loadSavedElectronFolder,
   loadSavedFolderHandle,
   pickDirectoryHandle,
+  pickElectronFolder,
   revokeAllObjectUrls,
+  saveElectronFolder,
   saveFolderHandle,
   scanDirectoryHandle,
+  scanElectronFolder,
   scanFileList,
+  setElectronFolderDisconnected,
   supportsDirectoryPicker,
   verifyHandlePermission,
 } from './lib/localLibrary.js';
@@ -50,7 +58,6 @@ function writeStorage(key, value) {
 export default function App() {
   const [songs, setSongs] = useState([]);
   const [folderName, setFolderName] = useState('');
-  const [isDemoMode, setIsDemoMode] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(null);
   const [savedHandle, setSavedHandle] = useState(null);
@@ -98,20 +105,24 @@ export default function App() {
 
   useEffect(() => { setMobileNavOpen(false); }, [route]);
 
-  useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.loved, [...loved]); }, [isDemoMode, loved]);
-  useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.playlists, playlists); }, [isDemoMode, playlists]);
-  useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.history, history); }, [isDemoMode, history]);
+  useEffect(() => { writeStorage(STORAGE_KEYS.loved, [...loved]); }, [loved]);
+  useEffect(() => { writeStorage(STORAGE_KEYS.playlists, playlists); }, [playlists]);
+  useEffect(() => { writeStorage(STORAGE_KEYS.history, history); }, [history]);
   useEffect(() => { writeStorage(STORAGE_KEYS.goalMin, goalMin); }, [goalMin]);
 
   useEffect(() => {
     let cancelled = false;
-    loadSavedFolderHandle().then((handle) => {
-      if (!cancelled && handle) setSavedHandle(handle);
-    });
+    if (isElectronApp()) {
+      const saved = loadSavedElectronFolder();
+      if (saved?.folderPath) setSavedHandle(saved);
+    } else {
+      loadSavedFolderHandle().then((handle) => {
+        if (!cancelled && handle) setSavedHandle(handle);
+      });
+    }
     return () => {
       cancelled = true;
       revokeAllObjectUrls();
-      revokeDemoAudioUrls();
     };
   }, []);
 
@@ -270,30 +281,6 @@ export default function App() {
     toast('PLAY HISTORY ERASED');
   }, [toast]);
 
-  const exitDemoState = useCallback(() => {
-    if (!isDemoMode) return;
-    setIsDemoMode(false);
-    setLoved(new Set(readStorage(STORAGE_KEYS.loved, [])));
-    setPlaylists(readStorage(STORAGE_KEYS.playlists, []));
-    setHistory(readStorage(STORAGE_KEYS.history, []));
-  }, [isDemoMode]);
-
-  const startDemoMode = useCallback(() => {
-    if (scanning) return;
-    player.clearQueue();
-    revokeAllObjectUrls();
-    revokeDemoAudioUrls();
-    activeHandleRef.current = null;
-    setIsDemoMode(true);
-    setFolderName('DEMO MODE');
-    setSongs(buildDemoSongs());
-    setLibGenre('All');
-    setLoved(new Set(DEMO_LOVED));
-    setPlaylists(DEMO_PLAYLISTS.map((playlist) => ({ ...playlist, songIds: [...playlist.songIds] })));
-    setHistory(seedDemoHistory());
-    toast('DEMO MODE ACTIVE · 13 SAMPLE TRACKS');
-  }, [player.clearQueue, scanning, toast]);
-
   const mountFromHandle = useCallback(async (handle) => {
     setScanning(true);
     setScanProgress({ done: 0, total: 0 });
@@ -305,9 +292,7 @@ export default function App() {
       }
       player.clearQueue();
       revokeAllObjectUrls();
-      revokeDemoAudioUrls();
       const scannedSongs = await scanDirectoryHandle(handle, setScanProgress);
-      exitDemoState();
       activeHandleRef.current = handle;
       setSavedHandle(handle);
       await saveFolderHandle(handle);
@@ -325,10 +310,84 @@ export default function App() {
       setScanning(false);
       setScanProgress(null);
     }
-  }, [exitDemoState, player.clearQueue, toast]);
+  }, [player.clearQueue, toast]);
+
+  const mountElectronFolder = useCallback(async (folderInfo) => {
+    if (!folderInfo?.folderPath) return;
+    setScanning(true);
+    setScanProgress({ done: 0, total: 0 });
+    try {
+      player.clearQueue();
+      revokeAllObjectUrls();
+      const scannedSongs = await scanElectronFolder(folderInfo.folderPath, setScanProgress);
+      const normalized = {
+        folderPath: folderInfo.folderPath,
+        name: folderInfo.name || folderInfo.folderName || 'Music',
+      };
+      setElectronFolderDisconnected(false);
+      activeHandleRef.current = normalized;
+      setSavedHandle(normalized);
+      saveElectronFolder(normalized);
+      setSongs(scannedSongs);
+      setFolderName(normalized.name);
+      setLibGenre('All');
+      toast(
+        scannedSongs.length
+          ? `MOUNTED "${normalized.name.toUpperCase()}" · ${scannedSongs.length} TRACKS`
+          : `NO AUDIO FILES IN "${normalized.name.toUpperCase()}"`,
+      );
+    } catch {
+      toast('FAILED TO READ LOCAL FOLDER');
+    } finally {
+      setScanning(false);
+      setScanProgress(null);
+    }
+  }, [player.clearQueue, toast]);
+
+  const electronAutoMountedRef = useRef(false);
+  useEffect(() => {
+    if (electronAutoMountedRef.current || !isElectronApp()) return;
+    electronAutoMountedRef.current = true;
+    if (isElectronFolderDisconnected()) return;
+
+    const saved = loadSavedElectronFolder();
+    if (saved?.folderPath) {
+      mountElectronFolder(saved);
+      return;
+    }
+
+    getDefaultElectronMusicFolder().then((defaultFolder) => {
+      if (defaultFolder?.folderPath) {
+        mountElectronFolder(defaultFolder);
+      }
+    }).catch(() => {});
+  }, [mountElectronFolder]);
+
+  const useDefaultMusicFolder = useCallback(async () => {
+    if (!isElectronApp() || scanning) return;
+    try {
+      const defaultFolder = await getDefaultElectronMusicFolder();
+      if (defaultFolder?.folderPath) {
+        await mountElectronFolder(defaultFolder);
+      } else {
+        toast('DEFAULT MUSIC FOLDER NOT FOUND');
+      }
+    } catch {
+      toast('COULD NOT OPEN DEFAULT MUSIC FOLDER');
+    }
+  }, [mountElectronFolder, scanning, toast]);
 
   const pickFolder = useCallback(async () => {
     if (scanning) return;
+    if (isElectronApp()) {
+      try {
+        const picked = await pickElectronFolder();
+        if (picked?.folderPath) await mountElectronFolder(picked);
+      } catch {
+        toast('COULD NOT OPEN FOLDER PICKER');
+      }
+      return;
+    }
     if (supportsDirectoryPicker()) {
       try {
         const handle = await pickDirectoryHandle();
@@ -339,7 +398,7 @@ export default function App() {
       return;
     }
     fallbackInputRef.current?.click();
-  }, [mountFromHandle, scanning, toast]);
+  }, [mountElectronFolder, mountFromHandle, scanning, toast]);
 
   const handleFallbackFiles = useCallback(async (event) => {
     const fileList = event.target.files;
@@ -349,9 +408,7 @@ export default function App() {
     try {
       player.clearQueue();
       revokeAllObjectUrls();
-      revokeDemoAudioUrls();
       const { folderName: nextFolder, songs: scannedSongs } = await scanFileList(fileList, setScanProgress);
-      exitDemoState();
       activeHandleRef.current = null;
       setSongs(scannedSongs);
       setFolderName(nextFolder);
@@ -368,36 +425,42 @@ export default function App() {
       setScanning(false);
       setScanProgress(null);
     }
-  }, [exitDemoState, player.clearQueue, toast]);
+  }, [player.clearQueue, toast]);
 
   const reconnectSavedFolder = useCallback(async () => {
     if (!savedHandle || scanning) return;
+    if (isElectronApp() && savedHandle.folderPath) {
+      await mountElectronFolder(savedHandle);
+      return;
+    }
     await mountFromHandle(savedHandle);
-  }, [mountFromHandle, savedHandle, scanning]);
+  }, [mountElectronFolder, mountFromHandle, savedHandle, scanning]);
 
   const rescanFolder = useCallback(async () => {
     if (!activeHandleRef.current || scanning) return;
+    if (isElectronApp() && activeHandleRef.current.folderPath) {
+      await mountElectronFolder(activeHandleRef.current);
+      return;
+    }
     await mountFromHandle(activeHandleRef.current);
-  }, [mountFromHandle, scanning]);
+  }, [mountElectronFolder, mountFromHandle, scanning]);
 
   const disconnectFolder = useCallback(async () => {
-    const wasDemo = isDemoMode;
     player.clearQueue();
     revokeAllObjectUrls();
-    revokeDemoAudioUrls();
     activeHandleRef.current = null;
     setSongs([]);
     setFolderName('');
     setLibGenre('All');
-    if (wasDemo) {
-      exitDemoState();
-      toast('EXITED DEMO MODE');
-      return;
-    }
     setSavedHandle(null);
-    await clearSavedFolderHandle();
+    if (isElectronApp()) {
+      clearSavedElectronFolder();
+      setElectronFolderDisconnected(true);
+    } else {
+      await clearSavedFolderHandle();
+    }
     toast('LOCAL ARCHIVE DISCONNECTED');
-  }, [exitDemoState, isDemoMode, player.clearQueue, toast]);
+  }, [player.clearQueue, toast]);
 
   const searchArtist = useCallback((artist) => {
     closeSearch();
@@ -490,7 +553,6 @@ export default function App() {
         scanProgress={scanProgress}
         onPickFolder={pickFolder}
         onReconnectFolder={reconnectSavedFolder}
-        onStartDemo={startDemoMode}
         onToggle={player.toggle}
         onStop={handleStop}
         onNext={() => player.next()}
@@ -522,7 +584,6 @@ export default function App() {
         onGenre={setLibGenre}
         onSort={() => setLibSort((current) => current === 'az' ? 'newest' : 'az')}
         onPickFolder={pickFolder}
-        onStartDemo={startDemoMode}
         onPlay={playSong}
         onContextMenu={handleContextMenu}
         onPlayAlbum={playAlbum}
@@ -577,13 +638,14 @@ export default function App() {
       <SettingsView
         switches={switches}
         folderName={folderName}
+        folderPath={activeHandleRef.current?.folderPath || ''}
         songCount={songs.length}
         canRescan={Boolean(activeHandleRef.current)}
-        isDemoMode={isDemoMode}
+        isElectron={isElectronApp()}
         scanning={scanning}
         onToggleSwitch={updateSwitch}
         onPickFolder={pickFolder}
-        onStartDemo={startDemoMode}
+        onUseDefaultFolder={useDefaultMusicFolder}
         onRescan={rescanFolder}
         onDisconnect={disconnectFolder}
         onClearHistory={clearHistory}
@@ -727,7 +789,6 @@ export default function App() {
         onClose={() => setAddSongsPlaylistId(null)}
         onToggleSong={toggleSongInPlaylist}
         onPickFolder={pickFolder}
-        onStartDemo={startDemoMode}
       />
       <Toasts messages={toasts} />
       <BootScreen />

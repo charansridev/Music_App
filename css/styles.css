@@ -162,6 +162,15 @@ tr:focus-visible {
   color: var(--paper);
 }
 
+.brand-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+
 .brand-dot {
   width: 10px;
   height: 10px;

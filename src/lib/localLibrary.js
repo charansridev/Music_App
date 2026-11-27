@@ -17,9 +17,71 @@ const DB_NAME = 'nothing-audio-os';
 const DB_VERSION = 1;
 const HANDLE_STORE = 'handles';
 const LAST_FOLDER_KEY = 'last-folder';
+const ELECTRON_FOLDER_KEY = 'nothing-audio:electronFolder';
+const ELECTRON_DISCONNECTED_KEY = 'nothing-audio:electronDisconnected';
 
 let audioUrls = new WeakMap();
 const activeObjectUrls = new Set();
+
+export function isElectronApp() {
+  return Boolean(typeof window !== 'undefined' && window.muzikDesktop?.isElectron);
+}
+
+export async function getDefaultElectronMusicFolder() {
+  if (!isElectronApp()) return null;
+  return window.muzikDesktop.getDefaultMusicFolder();
+}
+
+export function isElectronFolderDisconnected() {
+  try {
+    return localStorage.getItem(ELECTRON_DISCONNECTED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setElectronFolderDisconnected(disconnected) {
+  try {
+    if (disconnected) localStorage.setItem(ELECTRON_DISCONNECTED_KEY, '1');
+    else localStorage.removeItem(ELECTRON_DISCONNECTED_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+export async function pickElectronFolder() {
+  if (!isElectronApp()) return null;
+  return window.muzikDesktop.pickFolder();
+}
+
+export function saveElectronFolder(info) {
+  if (!info?.folderPath) return;
+  try {
+    localStorage.setItem(ELECTRON_FOLDER_KEY, JSON.stringify({
+      folderPath: info.folderPath,
+      name: info.name || info.folderName || 'Music',
+    }));
+  } catch {
+    // Ignore storage quota or restricted-mode errors.
+  }
+}
+
+export function loadSavedElectronFolder() {
+  try {
+    const raw = localStorage.getItem(ELECTRON_FOLDER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearSavedElectronFolder() {
+  try {
+    localStorage.removeItem(ELECTRON_FOLDER_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
 
 export function supportsDirectoryPicker() {
   return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
@@ -275,17 +337,8 @@ async function extractValidArt(pictures) {
   return null;
 }
 
-async function buildSongFromEntry({ file, relativePath }, albumArtCache) {
-  const normalizedPath = relativePath.replace(/\\/g, '/');
-  const { ext, fallbackArtist, fallbackTitle, fallbackAlbum } = parseFallbackPathInfo(normalizedPath, file.name);
-
-  let metadata = null;
-  try {
-    metadata = await parseBlob(file, { duration: true, skipCovers: false });
-  } catch {
-    metadata = null;
-  }
-
+async function buildSongObject({ normalizedPath, fileName, lastModified, metadata, albumArtCache, file, src }) {
+  const { ext, fallbackArtist, fallbackTitle, fallbackAlbum } = parseFallbackPathInfo(normalizedPath, fileName);
   const common = metadata?.common || {};
   const format = metadata?.format || {};
 
@@ -293,7 +346,7 @@ async function buildSongFromEntry({ file, relativePath }, albumArtCache) {
   const artist = common.artist?.trim() || common.albumartist?.trim() || fallbackArtist;
   const album = common.album?.trim() || fallbackAlbum;
   const albumArtist = common.albumartist?.trim() || artist;
-  const year = common.year || (file.lastModified ? new Date(file.lastModified).getFullYear() : new Date().getFullYear());
+  const year = common.year || (lastModified ? new Date(lastModified).getFullYear() : new Date().getFullYear());
   const genre = common.genre?.[0]?.trim() || 'Uncategorized';
   const track = common.track?.no || 0;
   const duration = Number.isFinite(format.duration) && format.duration > 0 ? format.duration : 0;
@@ -321,9 +374,81 @@ async function buildSongFromEntry({ file, relativePath }, albumArtCache) {
     duration,
     art,
     artType,
-    file,
+    ...(file ? { file } : {}),
+    ...(src ? { src } : {}),
     ...specs,
   };
+}
+
+async function buildSongFromEntry({ file, relativePath }, albumArtCache) {
+  const normalizedPath = relativePath.replace(/\\/g, '/');
+  let metadata = null;
+  try {
+    metadata = await parseBlob(file, { duration: true, skipCovers: false });
+  } catch {
+    metadata = null;
+  }
+
+  return buildSongObject({
+    normalizedPath,
+    fileName: file.name,
+    lastModified: file.lastModified,
+    metadata,
+    albumArtCache,
+    file,
+  });
+}
+
+export async function scanElectronFolder(folderPath, onProgress) {
+  if (!isElectronApp() || !folderPath) return [];
+  onProgress?.({ done: 0, total: 0 });
+  const entries = await window.muzikDesktop.listAudioFiles(folderPath);
+  const albumArtCache = new Map();
+  const songs = [];
+  const total = entries.length;
+  onProgress?.({ done: 0, total });
+
+  const batchSize = 8;
+  for (let index = 0; index < total; index += batchSize) {
+    const batch = entries.slice(index, index + batchSize);
+    const results = await Promise.all(batch.map(async (entry) => {
+      try {
+        const metadata = await window.muzikDesktop.readMetadata(entry.filePath);
+        return await buildSongObject({
+          normalizedPath: entry.relativePath.replace(/\\/g, '/'),
+          fileName: entry.name,
+          lastModified: entry.mtimeMs,
+          metadata,
+          albumArtCache,
+          src: window.muzikDesktop.toMediaUrl(entry.filePath),
+        });
+      } catch {
+        return null;
+      }
+    }));
+
+    const recent = [];
+    results.forEach((song) => {
+      if (song) {
+        songs.push(song);
+        recent.push({
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          hires: song.hires,
+        });
+      }
+    });
+    onProgress?.({ done: Math.min(total, index + batch.length), total, recent });
+  }
+
+  songs.sort((a, b) => (
+    a.album.localeCompare(b.album)
+    || (a.track || 9999) - (b.track || 9999)
+    || a.title.localeCompare(b.title)
+  ));
+
+  return songs;
 }
 
 async function collectHandleEntries(dirHandle, prefix = '', out = []) {

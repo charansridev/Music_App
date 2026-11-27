@@ -1,72 +1,97 @@
+<div align="center">
+
+<img src="./public/icon.png" alt="MUZIK M Logo" width="112" />
+
 # MUZIK
 
-A minimalist, album-first local audio player built for tactile listening. Mount any music folder directly from your device—nothing leaves your machine—and listen with a spinning vinyl slide-out deck, 3D sleeve tilt physics, Web Audio DSP, and a beat-reactive Glyph Matrix background.
+**An experimental, Swiss-editorial local music player built for people who still own their files.**
+
+*Ink Black · Off-White Paper · Warm Sand · Signal Green*
+
+![React](https://img.shields.io/badge/React-18-0A0A0A?style=for-the-badge&logo=react&logoColor=F4D026)
+![Vite](https://img.shields.io/badge/Vite-8-0A0A0A?style=for-the-badge&logo=vite&logoColor=18B848)
+![Electron](https://img.shields.io/badge/Electron-Desktop-0A0A0A?style=for-the-badge&logo=electron&logoColor=F2F1EC)
+![Local First](https://img.shields.io/badge/100%25-Local--First-007A19?style=for-the-badge)
+
+</div>
 
 ---
 
-## Highlights
+No subscriptions. No algorithms. No cloud uploads. Just your local FLAC, WAV, MP3, M4A, AAC, OGG, and OPUS collection wrapped in an expressive Swiss-grid interface with vinyl physics, bouncing record crates, and Web Audio DSP.
 
-- **Local-First Library:** Mount folders using the File System Access API (with automatic directory-input fallback) and index **FLAC, WAV, MP3, M4A, AAC, OGG, and OPUS** files with embedded artwork and audio specs via `music-metadata`. Folder handles persist locally in IndexedDB for one-click reconnect.
-- **Album-First Deck & Tactile Motion:** Pressing **Listen** (or clicking the album sleeve) slides a spinning vinyl disc out from behind the cover with spring physics. Both the album cover and the translucent control panel feature pointer-tracked 3D perspective tilt and a cursor-following light sheen.
-- **Beat-Reactive Glyph Matrix Background:** A 60fps HTML5 Canvas + Web Audio `AnalyserNode` engine renders borderless micro-LED boxes across the `#09090B` canvas **only while music is playing**, radiating geometric beat ripples and frequency-mapped pulses in real time (respects the `Glyph Soundwire` toggle and `prefers-reduced-motion`).
-- **Master Library & Hi-Res Vault:** Browse by Songs, Albums (with hover vinyl-peek and sheen), Artists, or dedicated Hi-Res (24-bit / DSD) masters with instant command search (`Ctrl/Cmd + K`).
-- **Tape Stash (Reels & Loved Tracks):** Create, rename, populate, and erase custom Reels, or shuffle Loved tracks—stored locally in `localStorage`.
-- **Listening Telemetry:** 60-day local playback log with 7-day / 8-week charts, time-of-day rhythm breakdown, daily history, and a 35-day listening streak tracker with configurable daily goals.
-- **Audio Output & DSP Rig:** Switch system audio output devices (`setSinkId`), toggle **Glyph Soundwire**, engage analogue-style **Crossfeed DSP**, or sum to **Mono** in real time.
-- **Instant Demo Mode:** Try the full experience immediately with 13 synthesized sample tracks, pre-seeded playlists, and telemetry—no local files required.
+---
+
+## Three Switchable Playback Decks
+
+Pick your mood on the **01 Deck** screen using the circular signal pills:
+
+| Mode | Visual Personality | Signature Toy |
+| :--- | :--- | :--- |
+| **M · Mix** | Warm Sand (`#D8D1C5`) meets Ink & Paper | Dual asymmetric spinning vinyl discs + 72-bar waveform scrubber |
+| **R · Reel** | Warm Taupe (`#B5AAA0`) & Ink Black | 3-prong rotating tape reel, dot-matrix playhead, rainbow arc meter & 16-band spectrum |
+| **P · Poster** | Full-bleed Signal Green (`#007A19`) | Oversized Swiss typography, 45° arrow, orange track badge & vinyl peek |
+
+---
+
+## What Makes It Fun
+
+- **Interactive Falling Music Crate Scanner:** Indexing a big folder isn't a boring spinner anymore. As your files are tagged, vinyl discs, 3-prong reels, and signal badges drop into an interactive 2D physics crate. **Move your cursor** to bat them around, **click anywhere** to trigger a shockwave, or hit **Shake Crate** to toss everything in the air.
+- **Native Desktop App (Electron):** Automatically mounts your OS **Music** folder on launch (or remembers whichever folder you picked), streams audio directly from disk with HTTP byte-range seeking via `muzik-media://`, and lets you switch or reset folders anytime in **05 System**.
+- **Smart Cover Art Validation:** Embedded album artwork is sniffed by magic bytes and verified with `createImageBitmap`—so broken tags never leave you staring at a blank square, falling back cleanly to bold geometric cover art.
+- **Master Library (`02 Library`):** Browse by **Songs**, **Albums** (with vinyl-peek cards and `HI-RES` callouts), or **Artists**, filter by genre chips, sort A–Z or Newest, and jump anywhere instantly with `Ctrl/Cmd + K`.
+- **Tape Stash (`03 Stash`):** Build custom Reels, seed new Reels straight from a track's right-click menu, and shuffle your Loved tracks.
+- **Editable Queue (`Q`):** Slide-out transmission drawer with drag-and-drop reordering, move up/down buttons, and live playback equalizer bars.
+- **Audio Output Switcher & Live DSP:** Route playback directly to your speakers, DAC, or headphones (`AudioContext.setSinkId` + `HTMLAudioElement.setSinkId`), toggle **Glyph Soundwire** (beat-reactive canvas matrix), engage **Crossfeed DSP** for headphones, or flip to **Mono** downmix on the fly.
+- **Listening Telemetry (`04 Stats`):** 60-day local history with 7-day / 8-week activity bars, time-of-day rhythm breakdown, oversized Swiss date logs, and a 35-day streak grid with daily listening goals.
 
 ---
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-| --- | --- |
+| Key | Action |
+| :--- | :--- |
 | `Space` | Play / Pause |
 | `←` / `→` | Seek ±5 seconds |
 | `Shift + ←` / `Shift + →` | Previous / Next track |
 | `Ctrl + K` / `Cmd + K` | Open archive search |
-| `Q` | Toggle transmission queue drawer |
+| `Q` | Toggle queue drawer |
 | `Esc` | Close active overlay or modal |
+
+---
+
+## Run It Yourself
+
+Requires **Node.js 22.12+**.
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Run in browser (Vite dev server)
+npm run dev
+
+# 3. Launch as Electron desktop app
+npm run electron
+
+# 4. Package Windows .exe (installer + portable in /release)
+npm run electron:build
+```
+
+> **Tip for first-time Electron setup:** If Electron's binary download wasn't cached during `npm install`, run `node node_modules/electron/install.js` once before `npm run electron`.
 
 ---
 
 ## Tech Stack
 
-- **UI & Build:** React 18, Vite 8
-- **Animation & Icons:** Framer Motion, Lucide React
+- **Frontend:** React 18, Vite 8, Framer Motion, Lucide React
+- **Desktop Wrapper:** Electron, Electron Builder, custom `muzik-media://` byte-range streaming protocol
 - **Audio & Metadata:** Web Audio API (`AnalyserNode`, Biquad/Delay Crossfeed, `setSinkId`), `music-metadata`
 
 ---
 
-## Getting Started
+## Upcoming Ideas
 
-Requires **Node.js 22.12+**.
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-```
-
----
-
-## Upcoming Roadmap
-
-Planned improvements and experiments for future releases:
-
-- [ ] **Adaptive Album-Tint Glyph Matrix:** Extract dominant colors from the active album cover so the beat-reactive matrix shifts palette per release.
-- [ ] **Custom Glyph Matrix Modes:** Switchable visual patterns (Geometric Ripples, Vertical Matrix Rain, Minimal Pulse, Off) and brightness/sensitivity controls in System settings.
-- [ ] **Synchronized Lyrics:** Parse embedded lyrics tags and sidecar `.lrc` files with smooth line-by-line auto-scroll.
-- [ ] **10-Band Parametric EQ & Presets:** Interactive Web Audio equalizer with Studio Flat, Warm Vinyl, Bass Boost, and custom saved curves.
-- [ ] **Gapless Playback & Crossfade:** Dual-buffer preloading for seamless live albums and configurable track-to-track crossfade.
-- [ ] **Drag-and-Drop Queue Reordering:** Reorder upcoming tracks directly inside the queue drawer and export/import Reels as `.m3u` or JSON.
-- [ ] **Smart Library Watch & Tag Editor:** Background folder re-indexing for newly added tracks plus inline metadata/artwork editing.
-- [ ] **Installable PWA & Desktop App:** Full offline caching via Service Worker and an optional lightweight desktop wrapper (Tauri / Electron) with global media keys.
+- [ ] **Synced `.lrc` & Embedded Lyrics:** Scrollable editorial lyric sheets alongside the active deck.
+- [ ] **10-Band Parametric EQ:** Custom curves and hardware-inspired presets.
+- [ ] **Gapless Playback & Crossfade:** Seamless transitions for live records and continuous mixes.
+- [ ] **Global Media Keys:** Control MUZIK from anywhere on your desktop while minimized.
