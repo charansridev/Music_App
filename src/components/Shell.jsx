@@ -98,9 +98,8 @@ export function ChassisHeader({
           {mobileNavOpen ? <X size={16} strokeWidth={1.8} /> : <Menu size={16} strokeWidth={1.8} />}
         </button>
 
-        <a href="#/deck" className="brand" aria-label="Nothing Audio OS-1 Home">
-          <span className="brand-mark" />
-          <span className="brand-name">NOTHING</span>
+        <a href="#/deck" className="brand" aria-label="MUZIK Home">
+          <span className="brand-name">MUZIK</span>
         </a>
       </div>
 
@@ -150,7 +149,6 @@ export function ChassisHeader({
             disabled={scanning}
             onClick={onPickFolder}
           >
-            <span className={classNames('ch-dot', folderName ? 'green' : 'muted')} />
             <FolderOpen size={13} strokeWidth={1.85} />
             <span className="ch-folder-label">{scanning ? 'Scanning...' : folderName || 'Mount'}</span>
           </button>
@@ -213,7 +211,6 @@ export function ChassisHeader({
                           setOpen(false);
                         }}
                       >
-                        <span className="out-item-dot" />
                         <span className="out-item-name">{device.label}</span>
                         {isActive && (
                           <span className="out-item-tag mono">
@@ -306,8 +303,7 @@ export function Sidebar({
             <div className="sb-top">
               <div className="sb-mobile-head">
                 <span className="brand">
-                  <span className="brand-mark" />
-                  <span className="brand-name">NOTHING</span>
+                  <span className="brand-name">MUZIK</span>
                 </span>
                 <button type="button" className="ch-icon-btn" aria-label="Close menu" onClick={onCloseMobile}>
                   <X size={15} strokeWidth={1.8} />
@@ -411,7 +407,6 @@ export function PlayerBar({
           </div>
           <div className="pf-info">
             <div className="pf-title-row">
-              <span className={classNames('red-tally', isPlaying && 'active')} />
               <span className="pf-title" id="pb-title">{current?.title || 'No track loaded'}</span>
             </div>
             <div className="pf-artist" id="pb-artist">

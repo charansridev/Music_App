@@ -85,8 +85,8 @@ export function BootScreen() {
               <span className="boot-mark-ring" />
               <span className="boot-mark-core" />
             </div>
-            <div className="boot-name">NOTHING</div>
-            <div className="boot-sub mono">AUDIO OS-1</div>
+            <div className="boot-name">MUZIK</div>
+            <div className="boot-sub mono">AUDIO PLAYER</div>
             <div className="boot-log mono">
               {lines.map((line) => (
                 <div key={line}>{line}</div>
@@ -360,7 +360,6 @@ export function Toasts({ messages }) {
             exit={{ opacity: 0, x: 14, scale: 0.96 }}
             transition={SPRING_SNAPPY}
           >
-            <span className="toast-dot" />
             <span>{toast.message}</span>
           </motion.div>
         ))}

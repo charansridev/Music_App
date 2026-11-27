@@ -106,7 +106,6 @@ export function LibrarySkeleton({ rows = 6, progress = null, label = 'INDEXING L
     <div className="skeleton-panel hw-card" aria-busy="true" aria-label={label}>
       <div className="skeleton-head">
         <div className="skeleton-title-row">
-          <span className="tally-dot pulse" />
           <span className="mono">{label}</span>
         </div>
         <span className="mono skeleton-pct">

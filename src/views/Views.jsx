@@ -260,7 +260,6 @@ export function DeckView({
 
       <HeroControlPanel>
         <div className="hero-kicker mono">
-          <span className={classNames('red-tally', isPlaying && 'active')} />
           <span>TRACK {trackNum} / {totalNum}</span>
         </div>
 
@@ -758,7 +757,7 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
         <div className="two-col">
           <div className="panel hw-card">
             <div className="panel-head">
-              <div className="panel-title mono"><span className="pd red" />LISTENING ACTIVITY</div>
+              <div className="panel-title mono">LISTENING ACTIVITY</div>
               <div className="hw-tabs">
                 {['7d', '8w'].map((mode) => {
                   const active = chartMode === mode;
@@ -793,7 +792,7 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
           </div>
 
           <div className="panel hw-card">
-            <div className="panel-head"><div className="panel-title mono"><span className="pd amber" />TIME OF DAY</div></div>
+            <div className="panel-head"><div className="panel-title mono">TIME OF DAY</div></div>
             <div className="rhythm-wrap">
               <div
                 className="donut"
@@ -872,7 +871,7 @@ export function StatsView({ history, songs, lovedCount, playlistCount, goalMin, 
         </motion.div>
         <div className="panel hw-card">
           <div className="panel-head">
-            <div className="panel-title mono"><span className="pd green" />35-DAY CADENCE</div>
+            <div className="panel-title mono">35-DAY CADENCE</div>
             <span className="page-sub mono">1 cell = 1 day</span>
           </div>
           <div className="streak-dots">
@@ -963,14 +962,14 @@ export function SettingsView({
 
       <div className="two-col">
         <div className="panel hw-card">
-          <div className="panel-head"><div className="panel-title mono"><span className="pd red" />AUDIO DSP</div></div>
+          <div className="panel-head"><div className="panel-title mono">AUDIO DSP</div></div>
           {settingRow('Glyph Soundwire', 'Turntable & spectrum meters react 1:1 to live signal', 'glyphSync')}
           {settingRow('Crossfeed DSP', 'Subtle stereo crossfeed filter for headphone listening', 'crossfeed')}
           {settingRow('Mono downmix', 'Sum stereo channels to a single centered output', 'mono')}
         </div>
 
         <div className="panel hw-card">
-          <div className="panel-head"><div className="panel-title mono"><span className="pd amber" />LOCAL ARCHIVE</div></div>
+          <div className="panel-head"><div className="panel-title mono">LOCAL ARCHIVE</div></div>
           <div className="settings-actions">
             <button type="button" className="hw-btn primary" disabled={scanning} onClick={onPickFolder}>
               <FolderOpen size={13} strokeWidth={1.9} />
@@ -1026,7 +1025,7 @@ export function HelpView() {
         </div>
       </div>
       <div className="panel hw-card" style={{ maxWidth: 600 }}>
-        <div className="panel-head"><div className="panel-title mono"><span className="pd red" />KEY BINDINGS</div></div>
+        <div className="panel-head"><div className="panel-title mono">KEY BINDINGS</div></div>
         {shortcuts.map(([shortcut, description]) => (
           <div className="help-row" key={shortcut}>
             <kbd>{shortcut}</kbd>
