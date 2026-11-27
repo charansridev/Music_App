@@ -19,7 +19,7 @@ function writeSavedSinkId(deviceId) {
   }
 }
 
-export function useAudioOutput({ audio, onToast }) {
+export function useAudioOutput({ audio, setContextSinkIdRef, onToast }) {
   const [devices, setDevices] = useState([DEFAULT_OUTPUT]);
   const [selectedId, setSelectedId] = useState(readSavedSinkId);
   const [needsUnlock, setNeedsUnlock] = useState(false);
@@ -94,7 +94,8 @@ export function useAudioOutput({ audio, onToast }) {
   useEffect(() => {
     if (!audio || typeof audio.setSinkId !== 'function') return;
     audio.setSinkId(selectedId || '').catch((error) => {
-      if (selectedId && (error?.name === 'NotFoundError' || error?.name === 'NotAllowedError')) {
+      const hasContextSink = typeof AudioContext !== 'undefined' && typeof AudioContext.prototype.setSinkId === 'function';
+      if (selectedId && !hasContextSink && (error?.name === 'NotFoundError' || error?.name === 'NotAllowedError')) {
         setSelectedId('');
         writeSavedSinkId('');
       }
@@ -107,10 +108,19 @@ export function useAudioOutput({ audio, onToast }) {
       pickedDevicesRef.current.set(nextId, labelOverride);
     }
 
+    const attempts = [];
+    if (setContextSinkIdRef?.current) {
+      attempts.push(setContextSinkIdRef.current(nextId));
+    }
     if (audio && typeof audio.setSinkId === 'function') {
-      try {
-        await audio.setSinkId(nextId);
-      } catch {
+      attempts.push(audio.setSinkId(nextId).then(() => true));
+    }
+
+    if (attempts.length > 0) {
+      const results = await Promise.allSettled(attempts);
+      const anyApplied = results.some((res) => res.status === 'fulfilled' && res.value === true);
+      const anyRejected = results.some((res) => res.status === 'rejected');
+      if (!anyApplied && anyRejected) {
         onToastRef.current?.('COULD NOT SWITCH OUTPUT DEVICE');
         if (nextId) {
           setSelectedId('');
@@ -126,7 +136,7 @@ export function useAudioOutput({ audio, onToast }) {
       || devices.find((item) => item.deviceId === nextId)?.label
       || 'System Default';
     onToastRef.current?.(`OUTPUT: ${chosenLabel.toUpperCase()}`);
-  }, [audio, devices]);
+  }, [audio, devices, setContextSinkIdRef]);
 
   const promptDevicePicker = useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices) return;

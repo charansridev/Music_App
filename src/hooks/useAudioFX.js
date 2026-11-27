@@ -33,8 +33,17 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, sinkI
 
     try {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      const context = new AudioContextClass();
-      if (sinkIdRef.current && typeof context.setSinkId === 'function') {
+      let context;
+      if (sinkIdRef.current) {
+        try {
+          context = new AudioContextClass({ sinkId: sinkIdRef.current });
+        } catch {
+          context = new AudioContextClass();
+        }
+      } else {
+        context = new AudioContextClass();
+      }
+      if (sinkIdRef.current && typeof context.setSinkId === 'function' && context.sinkId !== sinkIdRef.current) {
         context.setSinkId(sinkIdRef.current).catch(() => {});
       }
       const source = context.createMediaElementSource(element);
@@ -412,9 +421,18 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, sinkI
     return () => cancelAnimationFrame(frameId);
   }, [audio, band, ensureGraph]);
 
+  const setSinkId = useCallback(async (nextId) => {
+    const context = graphRef.current?.context;
+    if (!context || typeof context.setSinkId !== 'function') return false;
+    await context.setSinkId(nextId || '');
+    return true;
+  }, []);
+
   useEffect(() => () => {
     const graph = graphRef.current;
     graphRef.current = null;
     graph?.context.close().catch(() => {});
   }, []);
+
+  return { setSinkId };
 }

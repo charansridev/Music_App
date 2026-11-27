@@ -1,5 +1,8 @@
 import { EmptyState } from './EmptyState.jsx';
+import { SignalBadge } from './EditorialGraphics.jsx';
 import { classNames, formatTime } from '../lib/utils.js';
+
+const BADGE_TONES = ['yellow', 'pink', 'paper', 'orange', 'green'];
 
 export function TrackTable({ songs, currentSong, onPlay, onContextMenu, options = {} }) {
   if (!songs.length) {
@@ -19,17 +22,18 @@ export function TrackTable({ songs, currentSong, onPlay, onContextMenu, options 
       <table className="hw-table">
         <thead>
           <tr>
-            <th scope="col" className="col-st">#</th>
-            <th scope="col">Title</th>
-            <th scope="col" className="col-release">Album</th>
-            <th scope="col">Format</th>
-            <th scope="col" className="col-stream">Bitrate</th>
-            <th scope="col" className="col-dur" style={{ textAlign: 'right' }}>Time</th>
+            <th scope="col" className="col-st">NO.</th>
+            <th scope="col">TITLE / PERFORMER</th>
+            <th scope="col" className="col-release">RELEASE</th>
+            <th scope="col">FORMAT</th>
+            <th scope="col" className="col-stream">RATE</th>
+            <th scope="col" className="col-dur" style={{ textAlign: 'right' }}>TIME</th>
           </tr>
         </thead>
         <tbody>
           {songs.map((song, index) => {
             const isCurrent = currentSong?.id === song.id;
+            const tone = BADGE_TONES[index % BADGE_TONES.length];
             return (
               <tr
                 key={song.id}
@@ -51,9 +55,15 @@ export function TrackTable({ songs, currentSong, onPlay, onContextMenu, options 
               >
                 <td className="idx">
                   {isCurrent ? (
-                    <span className="row-eq" aria-hidden="true"><i /><i /><i /></span>
+                    <span className="row-eq-badge" aria-hidden="true">
+                      <span className="row-eq"><i /><i /><i /></span>
+                    </span>
                   ) : (
-                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <SignalBadge
+                      label={String(index + 1)}
+                      tone={tone}
+                      size="sm"
+                    />
                   )}
                 </td>
                 <td className="composition">
@@ -68,7 +78,7 @@ export function TrackTable({ songs, currentSong, onPlay, onContextMenu, options 
                     </div>
                   </div>
                 </td>
-                <td className="release col-release">{song.album}{song.year ? ` (${song.year})` : ''}</td>
+                <td className="release col-release">{song.album}{song.year ? ` · ${song.year}` : ''}</td>
                 <td><span className={classNames('spec-badge mono', song.hires && 'hi')}>{song.spec}</span></td>
                 <td className="dr mono col-stream">{song.dr}</td>
                 <td className="dur mono">{formatTime(song.duration)}</td>

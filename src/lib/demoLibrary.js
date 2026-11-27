@@ -1,26 +1,45 @@
 const demoAudioUrls = new Map();
 
-function art(color, motif) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320">
-  <defs>
-    <filter id="b" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>
-    <pattern id="d" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="${color}22"/></pattern>
-  </defs>
-  <rect width="320" height="320" fill="#050505"/>
-  <rect width="320" height="320" fill="url(#d)"/>
-  <g filter="url(#b)" opacity=".55">${motif}</g>
-  <g fill="none" stroke="${color}" stroke-width="5">${motif}</g>
+function art(bg, accent, motif) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <rect width="320" height="320" fill="${bg}"/>
+  <g>${motif}</g>
+  <circle cx="276" cy="44" r="14" fill="${accent}"/>
   </svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 const ART = {
-  coffee: art('#FF2D2D', '<circle cx="160" cy="150" r="80"/><circle cx="160" cy="150" r="30" fill="#FF2D2D" stroke="none"/>'),
-  redmoon: art('#BF5FFF', '<rect x="70" y="90" width="180" height="140"/><path d="M70 90 160 40l90 50"/>'),
-  glass: art('#00F5FF', '<path d="M50 250 160 60l110 190z"/><circle cx="160" cy="190" r="24" fill="#00F5FF" stroke="none"/>'),
-  night: art('#FFB800', '<circle cx="230" cy="90" r="50"/><path d="M40 240h240M40 270h180M40 210h160" />'),
-  green: art('#39FF14', '<rect x="80" y="80" width="160" height="160"/><rect x="130" y="130" width="60" height="60" fill="#39FF14" stroke="none"/>'),
-  golden: art('#FF2D2D', '<path d="M60 240c40-90 160-90 200 0"/><circle cx="160" cy="110" r="46" fill="#FF2D2D" stroke="none"/>'),
+  coffee: art(
+    '#0A0A0A',
+    '#F4D026',
+    '<path d="M0 240 L160 140 L320 240" fill="none" stroke="#F25C2A" stroke-width="26"/><path d="M0 285 L160 185 L320 285" fill="none" stroke="#18B848" stroke-width="22"/><circle cx="160" cy="116" r="56" fill="#F2F1EC"/><circle cx="160" cy="116" r="18" fill="#0A0A0A"/>',
+  ),
+  redmoon: art(
+    '#F2F1EC',
+    '#F25C2A',
+    '<rect x="36" y="42" width="164" height="236" fill="#0A0A0A"/><circle cx="212" cy="196" r="70" fill="#E892C4"/><circle cx="212" cy="196" r="24" fill="#0A0A0A"/>',
+  ),
+  glass: art(
+    '#D8D1C5',
+    '#2B7DE9',
+    '<circle cx="160" cy="160" r="108" fill="#0A0A0A"/><path d="M148 64 H172 L166 130 H154 Z" fill="#D8D1C5"/><path d="M148 64 H172 L166 130 H154 Z" fill="#D8D1C5" transform="rotate(120 160 160)"/><path d="M148 64 H172 L166 130 H154 Z" fill="#D8D1C5" transform="rotate(240 160 160)"/><circle cx="160" cy="160" r="22" fill="#F2F1EC"/>',
+  ),
+  night: art(
+    '#0A0A0A',
+    '#18B848',
+    '<path d="M40 240 A120 120 0 0 1 280 240" fill="none" stroke="#F4D026" stroke-width="22"/><path d="M74 240 A86 86 0 0 1 246 240" fill="none" stroke="#18B848" stroke-width="20"/><path d="M108 240 A52 52 0 0 1 212 240" fill="none" stroke="#F25C2A" stroke-width="18"/><circle cx="160" cy="240" r="18" fill="#F2F1EC"/>',
+  ),
+  green: art(
+    '#00921E',
+    '#F25C2A',
+    '<path d="M64 64 H248 V248 M242 70 L68 244" fill="none" stroke="#F2F1EC" stroke-width="34" stroke-linecap="square"/><circle cx="88" cy="236" r="26" fill="#0A0A0A"/>',
+  ),
+  golden: art(
+    '#B5AAA0',
+    '#E53935',
+    '<rect x="34" y="34" width="252" height="96" fill="#0A0A0A"/><rect x="34" y="156" width="120" height="130" fill="#F4D026"/><circle cx="222" cy="220" r="64" fill="#F2F1EC"/><circle cx="222" cy="220" r="20" fill="#0A0A0A"/>',
+  ),
 };
 
 const DEMO_SONGS = [

@@ -134,26 +134,24 @@ function hashString(value) {
 }
 
 function fallbackArt(key) {
-  const hash = hashString(key || 'nothing');
-  const palette = ['#FF2D2D', '#00F5FF', '#FFB800', '#22c55e', '#BF5FFF', '#e2e2e2'];
+  const hash = hashString(key || 'muzik');
+  const backgrounds = ['#0A0A0A', '#F2F1EC', '#D8D1C5', '#00921E', '#B5AAA0'];
+  const accents = ['#F4D026', '#F25C2A', '#18B848', '#E892C4', '#2B7DE9'];
+  const bg = backgrounds[hash % backgrounds.length];
+  const ink = bg === '#0A0A0A' || bg === '#00921E' ? '#F2F1EC' : '#0A0A0A';
+  const accent = accents[(hash >> 3) % accents.length];
   const motifs = [
-    (c) => `<circle cx="160" cy="160" r="78"/><circle cx="160" cy="160" r="26" fill="${c}" stroke="none"/>`,
-    (c) => `<rect x="76" y="76" width="168" height="168"/><rect x="132" y="132" width="56" height="56" fill="${c}" stroke="none"/>`,
-    (c) => `<path d="M56 244 160 62l104 182z"/><circle cx="160" cy="186" r="22" fill="${c}" stroke="none"/>`,
-    (c) => `<circle cx="220" cy="100" r="44"/><path d="M44 236h232M44 266h168M44 206h144"/>`,
-    (c) => `<path d="M60 236c40-88 160-88 200 0"/><circle cx="160" cy="112" r="42" fill="${c}" stroke="none"/>`,
+    () => `<circle cx="150" cy="170" r="96" fill="${ink}"/><circle cx="150" cy="170" r="32" fill="${accent}"/>`,
+    () => `<path d="M64 64 H248 V248 M242 70 L68 244" fill="none" stroke="${ink}" stroke-width="32" stroke-linecap="square"/><circle cx="92" cy="228" r="24" fill="${accent}"/>`,
+    () => `<path d="M40 236 A120 120 0 0 1 280 236" fill="none" stroke="#F4D026" stroke-width="22"/><path d="M74 236 A86 86 0 0 1 246 236" fill="none" stroke="#18B848" stroke-width="20"/><path d="M108 236 A52 52 0 0 1 212 236" fill="none" stroke="#F25C2A" stroke-width="18"/>`,
+    () => `<rect x="36" y="42" width="150" height="236" fill="${ink}"/><circle cx="218" cy="196" r="64" fill="${accent}"/>`,
+    () => `<path d="M0 248 L160 144 L320 248" fill="none" stroke="${accent}" stroke-width="26"/><circle cx="160" cy="112" r="52" fill="${ink}"/><circle cx="160" cy="112" r="16" fill="${bg}"/>`,
   ];
-  const color = palette[hash % palette.length];
-  const motif = motifs[(hash >> 3) % motifs.length](color);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320">
-  <defs>
-    <filter id="b" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>
-    <pattern id="d" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="${color}22"/></pattern>
-  </defs>
-  <rect width="320" height="320" fill="#050505"/>
-  <rect width="320" height="320" fill="url(#d)"/>
-  <g filter="url(#b)" opacity=".5">${motif}</g>
-  <g fill="none" stroke="${color}" stroke-width="5">${motif}</g>
+  const motif = motifs[(hash >> 5) % motifs.length]();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <rect width="320" height="320" fill="${bg}"/>
+  <g>${motif}</g>
+  <circle cx="276" cy="44" r="12" fill="${accent}"/>
   </svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
@@ -220,6 +218,63 @@ function formatSpecs(format = {}, ext = '') {
   return { spec, short, quant, hz, dr, hires };
 }
 
+function detectImageMime(bytes, declaredFormat = '') {
+  if (!bytes || bytes.length < 32) return null;
+
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png';
+  if (
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return 'image/gif';
+  if (bytes[0] === 0x42 && bytes[1] === 0x4d) return 'image/bmp';
+
+  const normalized = String(declaredFormat || '').trim().toLowerCase();
+  if (!normalized || normalized === '-->') return null;
+  if (normalized === 'jpg' || normalized === 'jpeg' || normalized === 'image/jpg') return 'image/jpeg';
+  if (normalized === 'png') return 'image/png';
+  if (normalized === 'webp') return 'image/webp';
+  if (normalized.startsWith('image/') && !normalized.includes('url')) return normalized;
+  return null;
+}
+
+async function extractValidArt(pictures) {
+  if (!Array.isArray(pictures) || !pictures.length) return null;
+
+  const ordered = [...pictures].sort((a, b) => {
+    const aFront = /front|cover/i.test(a?.type || '') ? 0 : 1;
+    const bFront = /front|cover/i.test(b?.type || '') ? 0 : 1;
+    return aFront - bFront;
+  });
+
+  for (const picture of ordered) {
+    const raw = picture?.data;
+    if (!raw) continue;
+    const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+    const mime = detectImageMime(bytes, picture.format);
+    if (!mime) continue;
+
+    const blob = new Blob([bytes], { type: mime });
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(blob);
+        bitmap.close?.();
+      } catch {
+        continue;
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    activeObjectUrls.add(url);
+    return { art: url, artType: mime };
+  }
+
+  return null;
+}
+
 async function buildSongFromEntry({ file, relativePath }, albumArtCache) {
   const normalizedPath = relativePath.replace(/\\/g, '/');
   const { ext, fallbackArtist, fallbackTitle, fallbackAlbum } = parseFallbackPathInfo(normalizedPath, file.name);
@@ -245,13 +300,9 @@ async function buildSongFromEntry({ file, relativePath }, albumArtCache) {
 
   const albumKey = `${album}|${albumArtist}`;
   let artInfo = albumArtCache.get(albumKey);
-  if (!artInfo && common.picture?.[0]) {
-    const picture = common.picture[0];
-    const artType = picture.format || 'image/jpeg';
-    const url = URL.createObjectURL(new Blob([picture.data], { type: artType }));
-    activeObjectUrls.add(url);
-    artInfo = { art: url, artType };
-    albumArtCache.set(albumKey, artInfo);
+  if (!artInfo && common.picture?.length) {
+    artInfo = await extractValidArt(common.picture);
+    if (artInfo) albumArtCache.set(albumKey, artInfo);
   }
 
   const art = artInfo?.art || fallbackArt(albumKey);
@@ -305,10 +356,19 @@ async function parseEntries(entries, getFile, onProgress) {
         return null;
       }
     }));
+    const recent = [];
     results.forEach((song) => {
-      if (song) songs.push(song);
+      if (song) {
+        songs.push(song);
+        recent.push({
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          hires: song.hires,
+        });
+      }
     });
-    onProgress?.({ done: Math.min(total, index + batch.length), total });
+    onProgress?.({ done: Math.min(total, index + batch.length), total, recent });
   }
 
   songs.sort((a, b) => (

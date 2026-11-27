@@ -43,9 +43,9 @@ export function BootScreen() {
       // Ignore storage errors when sessionStorage is unavailable.
     }
     const messages = [
-      'DAC CLOCK ........ 24-BIT LOCK',
-      'GLYPH BUS ........ 1:1 TELEMETRY',
-      'ARCHIVE .......... READY',
+      'SIGNAL BUS ....... READY',
+      'SWISS GRID ....... LOCKED',
+      'ARCHIVE .......... ONLINE',
     ];
     let index = 0;
     const interval = window.setInterval(() => {
@@ -55,8 +55,8 @@ export function BootScreen() {
         setLines((current) => [...current, nextLine]);
       }
       if (index >= messages.length) window.clearInterval(interval);
-    }, 180);
-    const timeout = window.setTimeout(dismiss, 900);
+    }, 150);
+    const timeout = window.setTimeout(dismiss, 720);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
@@ -72,7 +72,7 @@ export function BootScreen() {
           tabIndex={0}
           aria-label="Skip boot sequence"
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }}
+          exit={{ opacity: 0, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
           onClick={dismiss}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') dismiss();
@@ -89,7 +89,7 @@ export function BootScreen() {
               <span className="boot-mark-core" />
             </div>
             <div className="boot-name">MUZIK</div>
-            <div className="boot-sub mono">AUDIO PLAYER</div>
+            <div className="boot-sub mono">EXPERIMENTAL AUDIO EDITION</div>
             <div className="boot-log mono">
               {lines.map((line) => (
                 <div key={line}>{line}</div>

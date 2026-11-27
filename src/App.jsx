@@ -21,7 +21,7 @@ import { useAudioFX } from './hooks/useAudioFX.js';
 import { useAudioOutput } from './hooks/useAudioOutput.js';
 import { useHashRoute } from './hooks/useHashRoute.js';
 import { usePlayer } from './hooks/usePlayer.js';
-import { DeckView, HelpView, HiresView, LibraryView, PlaylistView, SettingsView, StashView, StatsView } from './views/Views.jsx';
+import { DeckView, HelpView, LibraryView, PlaylistView, SettingsView, StashView, StatsView } from './views/Views.jsx';
 
 const STORAGE_KEYS = {
   loved: 'nothing-audio:loved',
@@ -127,9 +127,10 @@ export default function App() {
     )));
   }, []);
 
+  const setContextSinkIdRef = useRef(null);
   const player = usePlayer({ songs, onTrackStart: recordPlay, onListen: recordListen });
-  const output = useAudioOutput({ audio: player.audio, onToast: toast });
-  useAudioFX({
+  const output = useAudioOutput({ audio: player.audio, setContextSinkIdRef, onToast: toast });
+  const audioFx = useAudioFX({
     audio: player.audio,
     isPlaying: player.isPlaying,
     glyphSync: switches.glyphSync,
@@ -137,6 +138,7 @@ export default function App() {
     crossfeed: switches.crossfeed,
     sinkId: output.selectedId,
   });
+  setContextSinkIdRef.current = audioFx.setSinkId;
 
   const playSong = useCallback((song) => {
     const queueIndex = player.queue.findIndex((item) => item.id === song.id);
@@ -154,11 +156,6 @@ export default function App() {
 
   const playPlaylist = useCallback((playlist) => {
     player.playQueue(playlist.songIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean), 0);
-  }, [player.playQueue, songs]);
-
-  const playHires = useCallback(() => {
-    const hiresSongs = songs.filter((song) => song.hires);
-    if (hiresSongs.length) player.playQueue(hiresSongs, 0);
   }, [player.playQueue, songs]);
 
   const shuffleLoved = useCallback(() => {
@@ -469,10 +466,9 @@ export default function App() {
   }, [closeContextMenu, closeQueue, closeSearch, openSearch, player.next, player.previous, player.seekBy, player.toggle]);
 
   const routeSection = route.split('/')[0];
-  const activeView = routeSection === 'playlist' ? 'stash' : routeSection;
+  const activeView = routeSection === 'playlist' ? 'stash' : routeSection === 'hires' ? 'library' : routeSection;
   const currentPlaylist = routeSection === 'playlist' ? playlists.find((playlist) => playlist.id === route.split('/')[1]) : null;
   const currentLoved = Boolean(player.current && loved.has(player.current.id));
-  const hiresCount = songs.filter((song) => song.hires).length;
 
   let view;
   if (routeSection === 'deck') {
@@ -483,6 +479,12 @@ export default function App() {
         isPlaying={player.isPlaying}
         currentTime={player.currentTime}
         duration={player.duration}
+        shuffle={player.shuffle}
+        repeat={player.repeat}
+        loved={currentLoved}
+        volume={player.volume}
+        muted={player.muted}
+        queueCount={player.queue.length}
         savedFolderName={savedHandle?.name || ''}
         scanning={scanning}
         scanProgress={scanProgress}
@@ -494,9 +496,15 @@ export default function App() {
         onNext={() => player.next()}
         onPrevious={player.previous}
         onSeek={player.seekTo}
+        onToggleShuffle={handleToggleShuffle}
+        onCycleRepeat={handleCycleRepeat}
+        onLove={handleLove}
+        onVolume={player.setVolume}
+        onMute={player.toggleMute}
+        onToggleQueue={() => setQueueOpen((current) => !current)}
       />
     );
-  } else if (routeSection === 'library') {
+  } else if (routeSection === 'library' || routeSection === 'hires') {
     view = (
       <LibraryView
         songs={songs}
@@ -506,6 +514,7 @@ export default function App() {
         currentSong={player.current}
         folderName={folderName}
         scanning={scanning}
+        scanProgress={scanProgress}
         tab={libTab}
         genre={libGenre}
         sort={libSort}
@@ -520,8 +529,6 @@ export default function App() {
         onPlayArtist={playArtist}
       />
     );
-  } else if (routeSection === 'hires') {
-    view = <HiresView songs={songs} currentSong={player.current} onPlayHires={playHires} onPlay={playSong} onContextMenu={handleContextMenu} />;
   } else if (routeSection === 'stash') {
     view = (
       <StashView
@@ -602,7 +609,6 @@ export default function App() {
         songCount={songs.length}
         playlistCount={playlists.length}
         lovedCount={loved.size}
-        hiresCount={hiresCount}
         folderName={folderName}
         scanning={scanning}
         queueCount={player.queue.length}
@@ -626,7 +632,6 @@ export default function App() {
           songCount={songs.length}
           playlistCount={playlists.length}
           lovedCount={loved.size}
-          hiresCount={hiresCount}
           deckStatus={player.isPlaying ? 'PLAY' : 'IDLE'}
           folderName={folderName}
           scanning={scanning}

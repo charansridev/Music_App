@@ -34,7 +34,6 @@ export function ChassisHeader({
   songCount = 0,
   playlistCount = 0,
   lovedCount = 0,
-  hiresCount = 0,
   folderName = '',
   scanning = false,
   queueCount = 0,
@@ -80,12 +79,11 @@ export function ChassisHeader({
   };
 
   const navItems = [
-    { view: 'deck', label: 'Deck' },
-    { view: 'library', label: 'Library', count: songCount || null },
-    { view: 'stash', label: 'Stash', count: playlistCount + lovedCount || null },
-    { view: 'hires', label: 'Hi-Res', count: hiresCount || null },
-    { view: 'stats', label: 'Stats' },
-    { view: 'settings', label: 'System' },
+    { num: '01', view: 'deck', label: 'Deck' },
+    { num: '02', view: 'library', label: 'Library', count: songCount || null },
+    { num: '03', view: 'stash', label: 'Stash', count: playlistCount + lovedCount || null },
+    { num: '04', view: 'stats', label: 'Stats' },
+    { num: '05', view: 'settings', label: 'System' },
   ];
 
   return (
@@ -102,6 +100,7 @@ export function ChassisHeader({
         </button>
 
         <a href="#/deck" className="brand" aria-label="MUZIK Home">
+          <span className="brand-dot" aria-hidden="true" />
           <span className="brand-name">MUZIK</span>
         </a>
       </div>
@@ -123,6 +122,7 @@ export function ChassisHeader({
                   transition={SPRING_SNAPPY}
                 />
               )}
+              <span className="top-nav-num mono">{item.num}</span>
               <span className="top-nav-label">{item.label}</span>
               {item.count ? <span className="top-nav-count mono">{item.count}</span> : null}
             </a>
@@ -187,6 +187,7 @@ export function ChassisHeader({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.97 }}
                 transition={SPRING_SNAPPY}
+                onPointerDown={(event) => event.stopPropagation()}
               >
                 <div className="out-menu-head mono">
                   <span>OUTPUT DEVICE</span>
@@ -277,7 +278,6 @@ export function Sidebar({
   songCount,
   playlistCount,
   lovedCount,
-  hiresCount,
   deckStatus,
   folderName,
   scanning,
@@ -287,12 +287,11 @@ export function Sidebar({
   onOpenSearch,
 }) {
   const navigation = [
-    { view: 'deck', label: 'Active Deck', count: deckStatus },
-    { view: 'library', label: 'Master Library', count: songCount },
-    { view: 'stash', label: 'Tape Stash', count: playlistCount + lovedCount },
-    { view: 'hires', label: 'Hi-Res Vault', count: hiresCount },
-    { view: 'stats', label: 'Telemetry', count: '60D' },
-    { view: 'settings', label: 'System', count: 'OS-1' },
+    { num: '01', view: 'deck', label: 'Active Deck', count: deckStatus },
+    { num: '02', view: 'library', label: 'Master Library', count: songCount },
+    { num: '03', view: 'stash', label: 'Tape Stash', count: playlistCount + lovedCount },
+    { num: '04', view: 'stats', label: 'Telemetry', count: '60D' },
+    { num: '05', view: 'settings', label: 'System', count: 'DSP' },
   ];
 
   return (
@@ -319,6 +318,7 @@ export function Sidebar({
             <div className="sb-top">
               <div className="sb-mobile-head">
                 <span className="brand">
+                  <span className="brand-dot" aria-hidden="true" />
                   <span className="brand-name">MUZIK</span>
                 </span>
                 <button type="button" className="ch-icon-btn" aria-label="Close menu" onClick={onCloseMobile}>
@@ -361,7 +361,10 @@ export function Sidebar({
                     aria-current={activeView === item.view ? 'page' : undefined}
                     onClick={() => onCloseMobile?.()}
                   >
-                    <span>{item.label}</span>
+                    <span className="sb-nav-left">
+                      <span className="mono sb-nav-num">{item.num}</span>
+                      <span>{item.label}</span>
+                    </span>
                     <span className="mono">{item.count}</span>
                   </a>
                 ))}
@@ -370,7 +373,10 @@ export function Sidebar({
                   className={classNames(activeView === 'help' && 'active')}
                   onClick={() => onCloseMobile?.()}
                 >
-                  <span>Shortcuts</span>
+                  <span className="sb-nav-left">
+                    <span className="mono sb-nav-num">06</span>
+                    <span>Shortcuts</span>
+                  </span>
                   <span className="mono">?</span>
                 </a>
               </nav>
@@ -412,14 +418,14 @@ export function PlayerBar({
 
   return (
     <div className="dock-shell">
-      <footer id="chassis-footer" className="floating-dock">
-        <div className="pf-left">
+      <footer id="chassis-footer" className="floating-dock paper-dock">
+        <a href="#/deck" className="pf-left" title="Open active deck">
           <div
-            className="pf-art"
+            className={classNames('pf-art', isPlaying && 'spinning')}
             id="pb-art"
             style={current ? { backgroundImage: `url('${current.art}')` } : undefined}
           >
-            {!current && <Disc3 size={18} strokeWidth={1.5} className="pf-art-fallback" />}
+            {!current && <Disc3 size={18} strokeWidth={1.6} className="pf-art-fallback" />}
           </div>
           <div className="pf-info">
             <div className="pf-title-row">
@@ -434,7 +440,7 @@ export function PlayerBar({
             </div>
             <span className="sr-only" id="pb-engine">{isPlaying ? 'PLAYING' : 'STANDBY'}</span>
           </div>
-        </div>
+        </a>
 
         <div className="pf-center">
           <div className="pf-transport">
@@ -448,7 +454,7 @@ export function PlayerBar({
                 aria-pressed={shuffle}
                 onClick={onToggleShuffle}
               >
-                <Shuffle size={13} strokeWidth={1.85} />
+                <Shuffle size={13} strokeWidth={1.9} />
               </motion.button>
             </Tooltip>
 
@@ -461,7 +467,7 @@ export function PlayerBar({
                 aria-label="Previous track"
                 onClick={onPrevious}
               >
-                <SkipBack size={15} strokeWidth={1.9} />
+                <SkipBack size={15} strokeWidth={2} />
               </motion.button>
             </Tooltip>
 
@@ -489,7 +495,7 @@ export function PlayerBar({
                 aria-label="Next track"
                 onClick={onNext}
               >
-                <SkipForward size={15} strokeWidth={1.9} />
+                <SkipForward size={15} strokeWidth={2} />
               </motion.button>
             </Tooltip>
 
@@ -502,7 +508,7 @@ export function PlayerBar({
                 aria-label={`Repeat mode: ${repeat}`}
                 onClick={onCycleRepeat}
               >
-                {repeat === 'one' ? <Repeat1 size={13} strokeWidth={1.85} /> : <Repeat size={13} strokeWidth={1.85} />}
+                {repeat === 'one' ? <Repeat1 size={13} strokeWidth={1.9} /> : <Repeat size={13} strokeWidth={1.9} />}
               </motion.button>
             </Tooltip>
           </div>
@@ -510,7 +516,7 @@ export function PlayerBar({
           <div className="pf-progress">
             <span className="mono pb-time" id="pb-cur">{formatTime(currentTime)}</span>
             <SeekSurface id="led-strip" className="led-strip" value={progress} onSeek={onSeek} label="Seek playback">
-              {Array.from({ length: 20 }, (_, index) => <div className="led" key={index} />)}
+              {Array.from({ length: 24 }, (_, index) => <div className="led" key={index} />)}
             </SeekSurface>
             <span className="mono pb-time end" id="pb-dur">{formatTime(duration)}</span>
           </div>
