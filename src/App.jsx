@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MotionConfig, motion } from 'framer-motion';
 import { ChassisHeader, PlayerBar, Sidebar } from './components/Shell.jsx';
-import { AddSongsModal, BootScreen, ContextMenu, ImmersionOverlay, QueuePanel, ReelModal, SearchOverlay, Toasts } from './components/Overlays.jsx';
+import { AddSongsModal, BootScreen, ContextMenu, QueuePanel, ReelModal, SearchOverlay, Toasts } from './components/Overlays.jsx';
 import { buildDemoSongs, DEMO_LOVED, DEMO_PLAYLISTS, revokeDemoAudioUrls, seedDemoHistory } from './lib/demoLibrary.js';
 import {
   clearSavedFolderHandle,
@@ -14,6 +15,8 @@ import {
   supportsDirectoryPicker,
   verifyHandlePermission,
 } from './lib/localLibrary.js';
+import { SPRING_SMOOTH } from './lib/motion.js';
+import { classNames } from './lib/utils.js';
 import { useAudioFX } from './hooks/useAudioFX.js';
 import { useAudioOutput } from './hooks/useAudioOutput.js';
 import { useHashRoute } from './hooks/useHashRoute.js';
@@ -53,6 +56,7 @@ export default function App() {
   const [savedHandle, setSavedHandle] = useState(null);
   const [reelModal, setReelModal] = useState(null);
   const [addSongsPlaylistId, setAddSongsPlaylistId] = useState(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const activeHandleRef = useRef(null);
   const fallbackInputRef = useRef(null);
 
@@ -72,7 +76,6 @@ export default function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [immersionOpen, setImmersionOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
   const [toasts, setToasts] = useState([]);
   const toastIdRef = useRef(0);
@@ -92,6 +95,8 @@ export default function App() {
   useEffect(() => () => {
     toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
   }, []);
+
+  useEffect(() => { setMobileNavOpen(false); }, [route]);
 
   useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.loved, [...loved]); }, [isDemoMode, loved]);
   useEffect(() => { if (!isDemoMode) writeStorage(STORAGE_KEYS.playlists, playlists); }, [isDemoMode, playlists]);
@@ -130,7 +135,6 @@ export default function App() {
     glyphSync: switches.glyphSync,
     mono: switches.mono,
     crossfeed: switches.crossfeed,
-    immersionOpen,
     sinkId: output.selectedId,
   });
 
@@ -194,7 +198,6 @@ export default function App() {
     setSearchQuery('');
   }, []);
   const closeQueue = useCallback(() => setQueueOpen(false), []);
-  const closeImmersion = useCallback(() => setImmersionOpen(false), []);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   const handleContextMenu = useCallback((song, event) => {
@@ -452,9 +455,9 @@ export default function App() {
       } else if (event.code === 'KeyQ') {
         setQueueOpen((current) => !current);
       } else if (event.key === 'Escape') {
-        setImmersionOpen(false);
         setReelModal(null);
         setAddSongsPlaylistId(null);
+        setMobileNavOpen(false);
         closeSearch();
         closeContextMenu();
         closeQueue();
@@ -469,6 +472,7 @@ export default function App() {
   const activeView = routeSection === 'playlist' ? 'stash' : routeSection;
   const currentPlaylist = routeSection === 'playlist' ? playlists.find((playlist) => playlist.id === route.split('/')[1]) : null;
   const currentLoved = Boolean(player.current && loved.has(player.current.id));
+  const hiresCount = songs.filter((song) => song.hires).length;
 
   let view;
   if (routeSection === 'deck') {
@@ -489,7 +493,6 @@ export default function App() {
         onStop={handleStop}
         onNext={() => player.next()}
         onPrevious={player.previous}
-        onOpenImmersion={() => setImmersionOpen(true)}
         onSeek={player.seekTo}
       />
     );
@@ -586,8 +589,24 @@ export default function App() {
   }
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
+      <canvas
+        id="glyph-matrix-bg"
+        className={classNames('glyph-matrix-bg', player.isPlaying && switches.glyphSync && 'active')}
+        aria-hidden="true"
+      />
       <ChassisHeader
+        activeView={activeView}
+        mobileNavOpen={mobileNavOpen}
+        onToggleMobileNav={() => setMobileNavOpen((current) => !current)}
+        songCount={songs.length}
+        playlistCount={playlists.length}
+        lovedCount={loved.size}
+        hiresCount={hiresCount}
+        folderName={folderName}
+        scanning={scanning}
+        onPickFolder={pickFolder}
+        onOpenSearch={openSearch}
         outputName={output.selectedLabel.toUpperCase()}
         devices={output.devices}
         selectedId={output.selectedId}
@@ -604,39 +623,56 @@ export default function App() {
           songCount={songs.length}
           playlistCount={playlists.length}
           lovedCount={loved.size}
-          hiresCount={songs.filter((song) => song.hires).length}
-          deckStatus={player.isPlaying ? 'PLAYING' : 'IDLE'}
+          hiresCount={hiresCount}
+          deckStatus={player.isPlaying ? 'PLAY' : 'IDLE'}
           folderName={folderName}
           scanning={scanning}
+          mobileOpen={mobileNavOpen}
+          onCloseMobile={() => setMobileNavOpen(false)}
           onPickFolder={pickFolder}
           onOpenSearch={openSearch}
         />
-        <main id="main"><div id="view">{view}</div></main>
+        <main id="main">
+          <div id="view" className={classNames(routeSection === 'deck' && 'on-deck')}>
+            <motion.div
+              key={routeSection}
+              className="view-frame"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={SPRING_SMOOTH}
+            >
+              {view}
+            </motion.div>
+          </div>
+        </main>
       </div>
-      <PlayerBar
-        current={player.current}
-        hasSongs={songs.length > 0}
-        isPlaying={player.isPlaying}
-        shuffle={player.shuffle}
-        repeat={player.repeat}
-        loved={currentLoved}
-        muted={player.muted}
-        mono={switches.mono}
-        volume={player.volume}
-        currentTime={player.currentTime}
-        duration={player.duration}
-        onToggle={player.toggle}
-        onNext={() => player.next()}
-        onPrevious={player.previous}
-        onToggleShuffle={handleToggleShuffle}
-        onCycleRepeat={handleCycleRepeat}
-        onLove={handleLove}
-        onVolume={player.setVolume}
-        onMute={player.toggleMute}
-        onMono={(value) => updateSwitch('mono', value)}
-        onQueue={() => setQueueOpen((current) => !current)}
-        onSeek={player.seekTo}
-      />
+      {routeSection !== 'deck' && (
+        <PlayerBar
+          current={player.current}
+          hasSongs={songs.length > 0}
+          isPlaying={player.isPlaying}
+          shuffle={player.shuffle}
+          repeat={player.repeat}
+          loved={currentLoved}
+          muted={player.muted}
+          mono={switches.mono}
+          volume={player.volume}
+          currentTime={player.currentTime}
+          duration={player.duration}
+          queueCount={player.queue.length}
+          onToggle={player.toggle}
+          onNext={() => player.next()}
+          onPrevious={player.previous}
+          onToggleShuffle={handleToggleShuffle}
+          onCycleRepeat={handleCycleRepeat}
+          onLove={handleLove}
+          onVolume={player.setVolume}
+          onMute={player.toggleMute}
+          onMono={(value) => updateSwitch('mono', value)}
+          onQueue={() => setQueueOpen((current) => !current)}
+          onSeek={player.seekTo}
+        />
+      )}
       <QueuePanel
         open={queueOpen}
         queue={player.queue}
@@ -658,23 +694,6 @@ export default function App() {
         onPlaySong={playSongFromSearch}
         onSearchArtist={searchArtist}
         onSearchAlbum={searchAlbum}
-      />
-      <ImmersionOverlay
-        open={immersionOpen}
-        songs={songs}
-        currentSong={player.current}
-        isPlaying={player.isPlaying}
-        currentTime={player.currentTime}
-        duration={player.duration}
-        shuffle={player.shuffle}
-        repeat={player.repeat}
-        onClose={closeImmersion}
-        onToggle={player.toggle}
-        onNext={() => player.next()}
-        onPrevious={player.previous}
-        onToggleShuffle={handleToggleShuffle}
-        onCycleRepeat={handleCycleRepeat}
-        onSeek={player.seekTo}
       />
       <ContextMenu
         menu={contextMenu}
@@ -712,6 +731,6 @@ export default function App() {
         style={{ display: 'none' }}
         onChange={handleFallbackFiles}
       />
-    </>
+    </MotionConfig>
   );
 }

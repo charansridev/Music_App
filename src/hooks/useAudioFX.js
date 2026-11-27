@@ -5,18 +5,25 @@ function elementById(id) {
   return document.getElementById(id);
 }
 
-export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immersionOpen, sinkId = '' }) {
+function drawRoundedSquare(ctx, x, y, size, radius) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, size, size, radius);
+  } else {
+    ctx.rect(x, y, size, size);
+  }
+}
+
+export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, sinkId = '' }) {
   const audioRef = useRef(audio);
   const graphRef = useRef(null);
   const settingsRef = useRef({ glyphSync, mono, crossfeed });
   const playingRef = useRef(isPlaying);
-  const immersionRef = useRef(immersionOpen);
   const sinkIdRef = useRef(sinkId);
 
   audioRef.current = audio;
   settingsRef.current = { glyphSync, mono, crossfeed };
   playingRef.current = isPlaying;
-  immersionRef.current = immersionOpen;
   sinkIdRef.current = sinkId;
 
   const ensureGraph = useCallback(() => {
@@ -118,6 +125,214 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immer
     if (!audio) return undefined;
     let frameId;
 
+    const matrixState = {
+      width: 0,
+      height: 0,
+      dpr: 1,
+      cols: 0,
+      rows: 0,
+      step: 28,
+      box: 16,
+      offsetX: 0,
+      offsetY: 0,
+      whiteCells: new Float32Array(0),
+      redCells: new Float32Array(0),
+      ripples: [],
+      avgBass: 0.08,
+      lastBeatAt: 0,
+      reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false,
+    };
+
+    const syncMatrixGrid = (canvas) => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (width === matrixState.width && height === matrixState.height && dpr === matrixState.dpr) return;
+
+      matrixState.width = width;
+      matrixState.height = height;
+      matrixState.dpr = dpr;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+
+      const step = width < 680 ? 24 : 28;
+      const box = width < 680 ? 13 : 16;
+      const cols = Math.ceil(width / step) + 1;
+      const rows = Math.ceil(height / step) + 1;
+
+      matrixState.step = step;
+      matrixState.box = box;
+      matrixState.cols = cols;
+      matrixState.rows = rows;
+      matrixState.offsetX = Math.floor((width - cols * step + (step - box)) / 2);
+      matrixState.offsetY = Math.floor((height - rows * step + (step - box)) / 2);
+      matrixState.whiteCells = new Float32Array(cols * rows);
+      matrixState.redCells = new Float32Array(cols * rows);
+    };
+
+    const updateMatrixBackground = (playing, reactive, now, bass, lowMid, mid, high) => {
+      const canvas = elementById('glyph-matrix-bg');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      syncMatrixGrid(canvas);
+      const { cols, rows, step, box, offsetX, offsetY, whiteCells, redCells, dpr } = matrixState;
+      const total = cols * rows;
+      if (!total) return;
+
+      const active = playing && settingsRef.current.glyphSync;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, matrixState.width, matrixState.height);
+
+      if (!active) {
+        whiteCells.fill(0);
+        redCells.fill(0);
+        matrixState.ripples.length = 0;
+        matrixState.avgBass = 0.08;
+        return;
+      }
+
+      // Decay existing LED cell levels
+      for (let i = 0; i < total; i++) {
+        whiteCells[i] *= 0.86;
+        redCells[i] *= 0.84;
+      }
+
+      if (matrixState.reducedMotion) {
+        const pulse = 0.42 + bass * 0.52;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if ((r + c) % 4 === 0) {
+              const x = offsetX + c * step;
+              const y = offsetY + r * step;
+              ctx.fillStyle = `rgba(244, 244, 245, ${(pulse * 0.42).toFixed(3)})`;
+              drawRoundedSquare(ctx, x, y, box, 3);
+              ctx.fill();
+            }
+          }
+        }
+        return;
+      }
+
+      const graph = graphRef.current;
+      const bins = graph?.fft.length || 128;
+
+      // Adaptive beat detection
+      const signalBass = reactive ? bass : 0;
+      matrixState.avgBass = matrixState.avgBass * 0.92 + signalBass * 0.08;
+      const beatThreshold = Math.max(0.14, matrixState.avgBass * 1.18);
+      if (reactive && signalBass > beatThreshold && now - matrixState.lastBeatAt > 185) {
+        matrixState.lastBeatAt = now;
+        const maxDist = Math.hypot(cols * 0.5, rows * 0.5) + 2;
+        const isCrimsonPeak = signalBass > Math.max(0.36, matrixState.avgBass * 1.42) || lowMid > 0.42;
+        matrixState.ripples.push({
+          radius: 0,
+          speed: 0.5 + signalBass * 0.44,
+          strength: Math.min(1, 0.72 + signalBass * 0.85),
+          crimson: isCrimsonPeak,
+          maxDist,
+        });
+        if (matrixState.ripples.length > 6) matrixState.ripples.shift();
+      }
+
+      // Advance Glyph Matrix geometric wave ripples (square Chebyshev + diamond hybrid)
+      const cx = (cols - 1) * 0.5;
+      const cy = (rows - 1) * 0.5;
+      for (let i = matrixState.ripples.length - 1; i >= 0; i--) {
+        const ripple = matrixState.ripples[i];
+        ripple.radius += ripple.speed;
+        ripple.strength *= 0.975;
+
+        for (let r = 0; r < rows; r++) {
+          const dy = Math.abs(r - cy);
+          for (let c = 0; c < cols; c++) {
+            const dx = Math.abs(c - cx);
+            const chebyshev = Math.max(dx, dy);
+            const manhattan = (dx + dy) * 0.72;
+            const dist = chebyshev * 0.7 + manhattan * 0.3;
+            const diff = Math.abs(dist - ripple.radius);
+            if (diff < 1.35) {
+              const hit = (1 - diff / 1.35) * ripple.strength;
+              const idx = r * cols + c;
+              if (ripple.crimson) {
+                if (hit > redCells[idx]) redCells[idx] = hit;
+              } else if (hit > whiteCells[idx]) {
+                whiteCells[idx] = hit;
+              }
+            }
+          }
+        }
+
+        if (ripple.radius > ripple.maxDist || ripple.strength < 0.05) {
+          matrixState.ripples.splice(i, 1);
+        }
+      }
+
+      // Symmetrical FFT column metering + high-hat sparkles across the matrix
+      if (reactive && graph) {
+        const halfCols = Math.max(1, Math.ceil(cols / 2));
+        for (let c = 0; c < cols; c++) {
+          const mirrorIdx = c < halfCols ? halfCols - 1 - c : c - halfCols;
+          const norm = mirrorIdx / halfCols;
+          const binLow = Math.max(1, Math.floor(Math.pow(bins * 0.75, norm)));
+          const binHigh = Math.max(binLow + 1, Math.floor(Math.pow(bins * 0.75, Math.min(1, norm + 1 / halfCols))));
+          const energy = band(binLow, binHigh);
+          const litRows = Math.round(energy * rows * 0.62);
+
+          for (let k = 0; k < litRows; k++) {
+            const bottomIdx = (rows - 1 - k) * cols + c;
+            const topIdx = k * cols + c;
+            const val = Math.min(1, energy * 1.45 * (1 - k / Math.max(1, rows * 0.68)));
+            if (val > whiteCells[bottomIdx]) whiteCells[bottomIdx] = val;
+            if (val * 0.75 > whiteCells[topIdx]) whiteCells[topIdx] = val * 0.75;
+          }
+        }
+
+        if (high > 0.14) {
+          const sparkleCount = Math.min(14, Math.floor(high * 22));
+          for (let s = 0; s < sparkleCount; s++) {
+            const hash = Math.abs(Math.sin((now * 0.013) + s * 19.37)) * total;
+            const idx = Math.floor(hash) % total;
+            const boost = Math.min(1, high * 1.75);
+            if (mid > 0.3 && s % 3 === 0) {
+              if (boost > redCells[idx]) redCells[idx] = boost;
+            } else if (boost > whiteCells[idx]) {
+              whiteCells[idx] = boost;
+            }
+          }
+        }
+      }
+
+      // Render matrix boxes with crisp LED brightness
+      const maxCenterDist = Math.hypot(cx || 1, cy || 1);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const idx = r * cols + c;
+          const x = offsetX + c * step;
+          const y = offsetY + r * step;
+
+          const radial = Math.hypot(c - cx, r - cy) / maxCenterDist;
+          const centerMask = 0.52 + 0.48 * Math.min(1, radial * 1.15);
+
+          const w = whiteCells[idx] * centerMask;
+          const rd = redCells[idx] * centerMask;
+
+          if (rd > 0.025 && rd >= w * 0.7) {
+            const alpha = Math.min(0.92, rd * 0.95);
+            ctx.fillStyle = `rgba(229, 57, 53, ${alpha.toFixed(3)})`;
+            drawRoundedSquare(ctx, x, y, box, 3);
+            ctx.fill();
+          } else if (w > 0.025) {
+            const alpha = Math.min(0.84, w * 0.85);
+            ctx.fillStyle = `rgba(244, 244, 245, ${alpha.toFixed(3)})`;
+            drawRoundedSquare(ctx, x, y, box, 3);
+            ctx.fill();
+          }
+        }
+      }
+    };
+
     const updateSpectrum = (reactive) => {
       if (!elementById('sp-0')) return;
       const graph = graphRef.current;
@@ -165,72 +380,31 @@ export function useAudioFX({ audio, isPlaying, glyphSync, mono, crossfeed, immer
           segment.className = `led${index < lit ? ' lit' : index === lit && percentage > 0 ? ' head' : ''}`;
         });
       }
-
-      const immersionFill = elementById('imm-fill');
-      if (immersionFill) immersionFill.style.width = `${percentage * 100}%`;
-      const immersionCurrent = elementById('imm-cur');
-      const immersionDuration = elementById('imm-dur');
-      if (immersionCurrent) immersionCurrent.textContent = formatTime(time);
-      if (immersionDuration) immersionDuration.textContent = formatTime(total);
     };
 
-    const updateGlyphSegments = (selector, reactive, bass, mid) => {
-      const segments = document.querySelectorAll(selector);
-      if (!segments.length) return;
-      const count = reactive ? 3 + Math.round(bass * 4) : 0;
-      const offset = Math.floor(performance.now() / (380 - Math.min(220, mid * 220))) % 8;
-      segments.forEach((segment, index) => {
-        segment.classList.toggle('lit', reactive && (index - offset + 8) % 8 < count);
-      });
-    };
-
-    const updateDeck = (playing, reactive, bass, mid) => {
+    const updateDeck = (playing) => {
       const core = elementById('platter-core');
       if (core) core.style.animationPlayState = playing ? 'running' : 'paused';
-      updateGlyphSegments('.gl-seg', reactive, bass, mid);
       const engine = elementById('pb-engine');
       if (engine) engine.textContent = playing ? 'PLAYING' : 'STANDBY';
     };
 
-    const updateImmersion = (playing, reactive, bass, mid) => {
-      const platterCore = elementById('imm-platter-core');
-      if (platterCore) platterCore.style.animationPlayState = playing ? 'running' : 'paused';
-      updateGlyphSegments('.imm-gl-seg', reactive, bass, mid);
-
-      const middleRing = elementById('glyph-ring-mid');
-      const outerRing = elementById('glyph-ring-outer');
-      if (middleRing) {
-        middleRing.style.strokeDashoffset = String(-(bass * 120));
-        middleRing.style.opacity = String(reactive ? 0.55 + bass * 0.45 : 0.25);
-      }
-      if (outerRing) {
-        outerRing.style.strokeDashoffset = String(-(mid * 60 + (performance.now() / 90) % 92));
-        outerRing.style.opacity = String(reactive ? 0.4 + mid * 0.4 : 0.3);
-      }
-      const redGlow = elementById('glow-red');
-      const cyanGlow = elementById('glow-cyan');
-      if (redGlow) redGlow.style.transform = `scale(${1 + bass * 0.45})`;
-      if (cyanGlow) cyanGlow.style.transform = `translate(-128px,-80px) scale(${1 + mid * 0.5})`;
-      const dot = elementById('imm-dot');
-      if (dot) {
-        dot.style.background = playing ? 'var(--red)' : 'var(--ink-4)';
-        dot.style.boxShadow = playing ? '0 0 8px rgba(215, 25, 32, .85)' : 'none';
-      }
-    };
-
-    const tick = () => {
+    const tick = (now) => {
       const graph = graphRef.current;
       const reactive = playingRef.current && settingsRef.current.glyphSync && ensureGraph();
       if (reactive && graph?.context.state === 'suspended') graph.context.resume().catch(() => {});
       if (reactive && graph) graph.analyser.getByteFrequencyData(graph.fft);
       else if (graph) graph.fft.fill(0);
 
-      const bass = reactive ? band(1, 8) : 0;
-      const mid = reactive ? band(8, 32) : 0;
+      const bass = reactive ? band(1, 7) : 0;
+      const lowMid = reactive ? band(7, 20) : 0;
+      const mid = reactive ? band(20, 44) : 0;
+      const high = reactive ? band(44, 96) : 0;
+
+      updateMatrixBackground(playingRef.current, reactive, now, bass, lowMid, mid, high);
       updateSpectrum(reactive);
       updateProgress();
-      updateDeck(playingRef.current, reactive, bass, mid);
-      if (immersionRef.current) updateImmersion(playingRef.current, reactive, bass, mid);
+      updateDeck(playingRef.current);
       frameId = requestAnimationFrame(tick);
     };
 

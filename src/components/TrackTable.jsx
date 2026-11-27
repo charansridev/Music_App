@@ -1,22 +1,30 @@
+import { EmptyState } from './EmptyState.jsx';
 import { classNames, formatTime } from '../lib/utils.js';
 
 export function TrackTable({ songs, currentSong, onPlay, onContextMenu, options = {} }) {
   if (!songs.length) {
-    return <div className="empty">{options.empty || 'NO TRANSMISSIONS'}</div>;
+    return (
+      <EmptyState
+        compact
+        variant={options.master ? 'hires' : 'disc'}
+        eyebrow={options.master ? 'HI-RES VAULT' : 'ARCHIVE'}
+        title={options.empty || 'No tracks found'}
+        description={options.emptyDesc || 'Adjust your filter or mount a local music folder.'}
+      />
+    );
   }
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className="hw-table-wrap">
       <table className="hw-table">
         <thead>
           <tr>
-            <th scope="col">ST</th>
-            <th scope="col">IDX</th>
-            <th scope="col">COMPOSITION / PERFORMER</th>
-            <th scope="col">RELEASE</th>
-            <th scope="col">SPEC</th>
-            <th scope="col">STREAM</th>
-            <th scope="col" style={{ textAlign: 'right' }}>DUR</th>
+            <th scope="col" className="col-st">#</th>
+            <th scope="col">Title</th>
+            <th scope="col" className="col-release">Album</th>
+            <th scope="col">Format</th>
+            <th scope="col" className="col-stream">Bitrate</th>
+            <th scope="col" className="col-dur" style={{ textAlign: 'right' }}>Time</th>
           </tr>
         </thead>
         <tbody>
@@ -41,16 +49,29 @@ export function TrackTable({ songs, currentSong, onPlay, onContextMenu, options 
                   }
                 }}
               >
-                <td className="st"><span className="st-dot" /></td>
-                <td className="idx">{String(index + 1).padStart(2, '0')}</td>
-                <td className="composition">
-                  <div className="t1">{song.title}</div>
-                  <div className="t2">{song.artist}</div>
+                <td className="idx">
+                  {isCurrent ? (
+                    <span className="row-eq" aria-hidden="true"><i /><i /><i /></span>
+                  ) : (
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                  )}
                 </td>
-                <td className="release">{song.album} ({song.year}{options.master ? ' Master' : ''})</td>
-                <td><span className={classNames('spec-badge', song.hires && 'hi')}>{song.spec}</span></td>
-                <td className="dr">{song.dr}</td>
-                <td className="dur">{formatTime(song.duration)}</td>
+                <td className="composition">
+                  <div className="comp-wrap">
+                    <div
+                      className="comp-art"
+                      style={song.art ? { backgroundImage: `url('${song.art}')` } : undefined}
+                    />
+                    <div className="comp-text">
+                      <div className="t1">{song.title}</div>
+                      <div className="t2">{song.artist}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="release col-release">{song.album}{song.year ? ` (${song.year})` : ''}</td>
+                <td><span className={classNames('spec-badge mono', song.hires && 'hi')}>{song.spec}</span></td>
+                <td className="dr mono col-stream">{song.dr}</td>
+                <td className="dur mono">{formatTime(song.duration)}</td>
               </tr>
             );
           })}

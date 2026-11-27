@@ -1,3 +1,5 @@
+import { motion } from 'framer-motion';
+import { SPRING_SNAPPY } from '../lib/motion.js';
 import { classNames } from '../lib/utils.js';
 
 export function HardwareSwitch({ checked, onChange, label, className = '', ...props }) {
@@ -10,7 +12,11 @@ export function HardwareSwitch({ checked, onChange, label, className = '', ...pr
       onClick={() => onChange(!checked)}
       {...props}
     >
-      <i />
+      <motion.span
+        className="hw-switch-cap"
+        layout
+        transition={SPRING_SNAPPY}
+      />
     </button>
   );
 }
