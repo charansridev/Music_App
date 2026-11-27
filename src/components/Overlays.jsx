@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   Check,
   FolderOpen,
+  GripVertical,
   Heart,
   ListMusic,
   ListPlus,
@@ -99,7 +102,15 @@ export function BootScreen() {
   );
 }
 
-export function QueuePanel({ open, queue, qIndex, isPlaying, onClose, onJump, onRemove }) {
+export function QueuePanel({ open, queue, qIndex, isPlaying, onClose, onJump, onRemove, onMove }) {
+  const [dragIndex, setDragIndex] = useState(null);
+  const [overIndex, setOverIndex] = useState(null);
+
+  const resetDrag = () => {
+    setDragIndex(null);
+    setOverIndex(null);
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -122,45 +133,119 @@ export function QueuePanel({ open, queue, qIndex, isPlaying, onClose, onJump, on
             transition={SPRING_SMOOTH}
           >
             <div className="q-head">
-              <span className="mono">QUEUE · <b>{queue.length}</b></span>
+              <div>
+                <div className="mono">QUEUE · <b>{queue.length}</b></div>
+                {queue.length > 1 && <div className="q-sub mono">DRAG OR USE ARROWS TO REORDER</div>}
+              </div>
               <button type="button" title="Close" aria-label="Close queue" onClick={onClose}>
                 <X size={15} strokeWidth={1.8} />
               </button>
             </div>
             <div id="queue-list">
-              {queue.length ? queue.map((song, index) => (
-                <div
-                  className={classNames('q-row', index === qIndex && 'current')}
-                  key={`${song.id}-${index}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onJump(index)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
+              {queue.length ? (() => {
+                const seenIds = new Map();
+                return queue.map((song, index) => {
+                  const occurrence = seenIds.get(song.id) || 0;
+                  seenIds.set(song.id, occurrence + 1);
+                  const isCurrent = index === qIndex;
+                  const isDragging = dragIndex === index;
+                  const isOverAbove = overIndex === index && dragIndex !== null && dragIndex > index;
+                  const isOverBelow = overIndex === index && dragIndex !== null && dragIndex < index;
+
+                  return (
+                    <motion.div
+                      layout
+                      transition={SPRING_SNAPPY}
+                      draggable={queue.length > 1}
+                      className={classNames(
+                        'q-row',
+                        isCurrent && 'current',
+                        isDragging && 'dragging',
+                        isOverAbove && 'drag-over-top',
+                        isOverBelow && 'drag-over-bottom',
+                      )}
+                      key={`${song.id}#${occurrence}`}
+                    role="button"
+                    tabIndex={0}
+                    onDragStart={(event) => {
+                      setDragIndex(index);
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', String(index));
+                    }}
+                    onDragOver={(event) => {
                       event.preventDefault();
-                      onJump(index);
-                    }
-                  }}
-                >
-                  <div className="q-thumb" style={{ backgroundImage: `url('${song.art}')` }} />
-                  <div className="q-meta">
-                    <div className="t1">{song.title}</div>
-                    <div className="t2 mono">{song.artist}</div>
-                  </div>
-                  {index === qIndex && isPlaying ? (
-                    <span className="q-eq" aria-label="Now playing"><i /><i /><i /></span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="q-x"
-                      aria-label={`Remove ${song.title} from queue`}
-                      onClick={(event) => { event.stopPropagation(); onRemove(index); }}
-                    >
-                      <X size={13} strokeWidth={1.9} />
-                    </button>
-                  )}
-                </div>
-              )) : (
+                      event.dataTransfer.dropEffect = 'move';
+                      if (overIndex !== index) setOverIndex(index);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (dragIndex !== null && dragIndex !== index) {
+                        onMove?.(dragIndex, index);
+                      }
+                      resetDrag();
+                    }}
+                    onDragEnd={resetDrag}
+                    onClick={() => onJump(index)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        onJump(index);
+                      }
+                    }}
+                  >
+                    {queue.length > 1 && (
+                      <span className="q-drag" aria-hidden="true" title="Drag to reorder">
+                        <GripVertical size={13} strokeWidth={1.8} />
+                      </span>
+                    )}
+                    <div className="q-thumb" style={{ backgroundImage: `url('${song.art}')` }} />
+                    <div className="q-meta">
+                      <div className="t1">{song.title}</div>
+                      <div className="t2 mono">{song.artist}</div>
+                    </div>
+                    <div className="q-actions" onClick={(event) => event.stopPropagation()}>
+                      {queue.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            className="q-move"
+                            disabled={index === 0}
+                            title="Move up"
+                            aria-label={`Move ${song.title} up`}
+                            onClick={() => onMove?.(index, index - 1)}
+                          >
+                            <ArrowUp size={12} strokeWidth={2} />
+                          </button>
+                          <button
+                            type="button"
+                            className="q-move"
+                            disabled={index === queue.length - 1}
+                            title="Move down"
+                            aria-label={`Move ${song.title} down`}
+                            onClick={() => onMove?.(index, index + 1)}
+                          >
+                            <ArrowDown size={12} strokeWidth={2} />
+                          </button>
+                        </>
+                      )}
+                      {isCurrent && isPlaying ? (
+                        <span className="q-eq" aria-label="Now playing"><i /><i /><i /></span>
+                      ) : !isCurrent ? (
+                        <button
+                          type="button"
+                          className="q-x"
+                          title="Remove from queue"
+                          aria-label={`Remove ${song.title} from queue`}
+                          onClick={() => onRemove(index)}
+                        >
+                          <X size={13} strokeWidth={1.9} />
+                        </button>
+                      ) : null}
+                    </div>
+                  </motion.div>
+                );
+                });
+              })() : (
                 <EmptyState
                   compact
                   variant="queue"

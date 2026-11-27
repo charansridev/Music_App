@@ -605,6 +605,9 @@ export default function App() {
         hiresCount={hiresCount}
         folderName={folderName}
         scanning={scanning}
+        queueCount={player.queue.length}
+        queueOpen={queueOpen}
+        onToggleQueue={() => setQueueOpen((current) => !current)}
         onPickFolder={pickFolder}
         onOpenSearch={openSearch}
         outputName={output.selectedLabel.toUpperCase()}
@@ -682,6 +685,7 @@ export default function App() {
         onClose={closeQueue}
         onJump={player.jumpTo}
         onRemove={player.removeFromQueue}
+        onMove={player.moveQueueItem}
       />
       <SearchOverlay
         open={searchOpen}

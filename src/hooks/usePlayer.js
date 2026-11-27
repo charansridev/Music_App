@@ -228,6 +228,38 @@ export function usePlayer({ songs, onTrackStart, onListen }) {
     setQueue(nextQueue);
   }, []);
 
+  const moveQueueItem = useCallback((fromIndex, toIndex) => {
+    const length = queueRef.current.length;
+    if (
+      fromIndex === toIndex
+      || fromIndex < 0
+      || fromIndex >= length
+      || toIndex < 0
+      || toIndex >= length
+    ) {
+      return;
+    }
+
+    const nextQueue = [...queueRef.current];
+    const [moved] = nextQueue.splice(fromIndex, 1);
+    nextQueue.splice(toIndex, 0, moved);
+
+    const active = qIndexRef.current;
+    let nextActive = active;
+    if (active === fromIndex) {
+      nextActive = toIndex;
+    } else if (fromIndex < active && toIndex >= active) {
+      nextActive = active - 1;
+    } else if (fromIndex > active && toIndex <= active) {
+      nextActive = active + 1;
+    }
+
+    queueRef.current = nextQueue;
+    qIndexRef.current = nextActive;
+    setQueue(nextQueue);
+    setQIndex(nextActive);
+  }, []);
+
   const next = useCallback((automatic = false) => {
     if (repeatRef.current === 'one' && automatic && audioRef.current) {
       audioRef.current.currentTime = 0;
@@ -364,6 +396,7 @@ export function usePlayer({ songs, onTrackStart, onListen }) {
     playNext,
     addToQueue,
     removeFromQueue,
+    moveQueueItem,
     jumpTo,
     next,
     previous,

@@ -37,6 +37,9 @@ export function ChassisHeader({
   hiresCount = 0,
   folderName = '',
   scanning = false,
+  queueCount = 0,
+  queueOpen = false,
+  onToggleQueue,
   onPickFolder,
   onOpenSearch,
   outputName,
@@ -241,6 +244,19 @@ export function ChassisHeader({
             )}
           </AnimatePresence>
         </div>
+
+        <Tooltip content="Queue" shortcut="Q" side="bottom">
+          <button
+            type="button"
+            className={classNames('ch-icon-btn ch-queue-btn', queueOpen && 'active')}
+            aria-label="Toggle queue"
+            aria-pressed={queueOpen}
+            onClick={onToggleQueue}
+          >
+            <ListMusic size={15} strokeWidth={1.8} />
+            {queueCount > 0 && <span className="pf-q-badge mono">{queueCount}</span>}
+          </button>
+        </Tooltip>
 
         <Tooltip content="Shortcuts" side="bottom">
           <a
